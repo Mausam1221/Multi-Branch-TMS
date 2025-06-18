@@ -45,6 +45,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             $result = $stmt->execute([$_POST['status'], $_POST['booking_id'], $branch_id]);
             echo json_encode(['success' => $result]);
             exit;
+
+        case 'update_branch_info':
+            $stmt = $db->prepare("UPDATE branches SET location = ?, contact_email = ?, contact_phone = ? WHERE id = ?");
+            $result = $stmt->execute([$_POST['location'], $_POST['email'], $_POST['phone'], $branch_id]);
+            echo json_encode(['success' => $result]);
+            exit;
+
+        case 'update_admin_profile':
+            try {
+                // First verify current password if provided
+                if (!empty($_POST['current_password'])) {
+                    $stmt = $db->prepare("SELECT password FROM users WHERE id = ?");
+                    $stmt->execute([$_SESSION['user_id']]);
+                    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                    if (!password_verify($_POST['current_password'], $user['password'])) {
+                        echo json_encode(['success' => false, 'message' => 'Current password is incorrect']);
+                        exit;
+                    }
+                }
+
+                // Update user information
+                if (!empty($_POST['new_password'])) {
+                    // Update with new password
+                    $hashed_password = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
+                    $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ?, password = ? WHERE id = ?");
+                    $result = $stmt->execute([$_POST['full_name'], $_POST['email'], $hashed_password, $_SESSION['user_id']]);
+                } else {
+                    // Update without password change
+                    $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ? WHERE id = ?");
+                    $result = $stmt->execute([$_POST['full_name'], $_POST['email'], $_SESSION['user_id']]);
+                }
+
+                if ($result) {
+                    // Update session data
+                    $_SESSION['full_name'] = $_POST['full_name'];
+                    $_SESSION['email'] = $_POST['email'];
+                }
+
+                echo json_encode(['success' => $result]);
+
+            } catch (Exception $e) {
+                error_log("Profile update error: " . $e->getMessage());
+                echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+            }
+            exit;
     }
 }
 
@@ -588,7 +634,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <label for="admin_name">Full Name</label>
                                         </div>
                                         <div class="form-floating mb-3">
-                                            <input type="email" class="form-control" id="admin_email" value="admin@branch.com">
+                                            <input type="email" class="form-control" id="admin_email" value="<?php echo $_SESSION['email'] ?? 'admin@branch.com'; ?>">
                                             <label for="admin_email">Email</label>
                                         </div>
                                         <div class="form-floating mb-3">
@@ -609,7 +655,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                     </div>
 
                     <!-- Notification Settings -->
-                    <div class="card">
+                    <!-- <div class="card">
                         <div class="card-header">
                             <h5><i class="fas fa-bell me-2"></i>Notification Settings</h5>
                         </div>
@@ -662,7 +708,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 </button>
                             </form>
                         </div>
-                    </div>
+                    </div> -->
                 </div>
             </div>
         </div>
@@ -842,12 +888,75 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
 
         document.getElementById('branchInfoForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            alert('Branch information updated successfully!');
+
+            // Save the current section to localStorage
+            localStorage.setItem('lastActiveSection', 'settings');
+
+            const formData = new FormData();
+            formData.append('action', 'update_branch_info');
+            formData.append('location', document.getElementById('branch_location').value);
+            formData.append('email', document.getElementById('branch_email').value);
+            formData.append('phone', document.getElementById('branch_phone').value);
+
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Branch information updated successfully!');
+                    location.reload();
+                } else {
+                    alert('Error updating branch information');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error updating branch information');
+            });
         });
 
+        // Restore last active section after reload
+        window.addEventListener('DOMContentLoaded', function() {
+            const lastSection = localStorage.getItem('lastActiveSection');
+            if (lastSection) {
+                showSection(lastSection);
+                localStorage.removeItem('lastActiveSection');
+            }
+        });
+
+        // Admin Profile
         document.getElementById('adminProfileForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            alert('Admin profile updated successfully!');
+
+            // Save the current section to localStorage
+            localStorage.setItem('lastActiveSection', 'settings');
+
+            const formData = new FormData();
+            formData.append('action', 'update_admin_profile');
+            formData.append('full_name', document.getElementById('admin_name').value);
+            formData.append('email', document.getElementById('admin_email').value);
+            formData.append('current_password', document.getElementById('current_password').value);
+            formData.append('new_password', document.getElementById('new_password').value);
+
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Admin profile updated successfully!');
+                    location.reload();
+                } else {
+                    alert(data.message || 'Error updating admin profile');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error updating admin profile');
+            });
         });
 
         document.getElementById('notificationForm').addEventListener('submit', function(e) {
