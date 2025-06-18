@@ -1,4 +1,5 @@
 <?php
+session_start();
 require_once 'config/database.php';
 require_once 'config/auth.php';
 
@@ -14,8 +15,52 @@ $auth = new Auth($db);
 
 $error_message = '';
 $debug_info = '';
+$register_error = '';
+$register_success = '';
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+// Registration logic FIRST
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['reg_username'])) {
+    $reg_full_name = trim($_POST['reg_full_name']);
+    $reg_email = trim($_POST['reg_email']);
+    $reg_username = trim($_POST['reg_username']);
+    $reg_password = $_POST['reg_password'];
+    $reg_confirm_password = $_POST['reg_confirm_password'];
+    $reg_phone = trim($_POST['reg_phone']);
+
+    // Validate input
+    if (empty($reg_full_name) || empty($reg_email) || empty($reg_username) || empty($reg_password) || empty($reg_confirm_password)) {
+        $register_error = 'Please fill in all required fields.';
+    } elseif (!filter_var($reg_email, FILTER_VALIDATE_EMAIL)) {
+        $register_error = 'Please enter a valid email address.';
+    } elseif ($reg_password !== $reg_confirm_password) {
+        $register_error = 'Passwords do not match.';
+    } elseif (strlen($reg_password) < 6) {
+        $register_error = 'Password must be at least 6 characters.';
+    } else {
+        // Check for duplicate username or email
+        $stmt = $db->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+        $stmt->execute([$reg_username, $reg_email]);
+        if ($stmt->fetch()) {
+            $register_error = 'Username or email already exists.';
+        } else {
+            // Hash password
+            $hashed_password = password_hash($reg_password, PASSWORD_DEFAULT);
+            // Insert new customer
+            $stmt = $db->prepare("INSERT INTO users (username, email, password, role, full_name, phone, status, created_at, updated_at) VALUES (?, ?, ?, 'customer', ?, ?, 'active', NOW(), NOW())");
+            $result = $stmt->execute([$reg_username, $reg_email, $hashed_password, $reg_full_name, $reg_phone]);
+            if ($result) {
+                $_SESSION['register_success'] = 'Account created successfully! You can now log in.';
+                header('Location: index.php');
+                exit();
+            } else {
+                $register_error = 'Registration failed. Please try again.';
+            }
+        }
+    }
+}
+
+// Login logic SECOND
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['reg_username'])) {
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
     
@@ -74,17 +119,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
         }
         
         .login-card {
+            width: 900px;
+            max-width: 98vw;
             background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
             border-radius: 20px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             overflow: hidden;
-            max-width: 900px;
-            width: 100%;
+            display: flex;
+            flex-direction: row;
+            position: relative;
+            min-height: 500px;
         }
         
         .login-left {
@@ -92,6 +139,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             color: white;
             padding: 60px 40px;
             text-align: center;
+            position: relative;
+            flex: 1 1 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-width: 0;
+            min-height: 300px;
+        }
+        
+        .login-right {
+            flex: 1 1 0;
+            padding: 60px 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-width: 0;
+            min-height: 300px;
+            background: transparent;
             position: relative;
         }
         
@@ -126,10 +192,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             margin-bottom: 30px;
             position: relative;
             z-index: 1;
-        }
-        
-        .login-right {
-            padding: 60px 40px;
         }
         
         .login-form h2 {
@@ -214,74 +276,113 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 font-size: 3rem;
             }
         }
+        
+        .login-form {
+            display: block;
+        }
+        .login-form.hide {
+            display: none;
+        }
+        .login-form.show {
+            display: block;
+        }
+        .fade {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        .fade.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .fade.hide {
+            opacity: 0;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <div class="login-card">
-            <div class="row g-0">
-                <div class="col-lg-6">
-                    <div class="login-left">
-                        <div class="travel-icon">
-                            <i class="fas fa-plane"></i>
+        <div class="login-card" id="loginCard">
+            <div class="login-left">
+                <div class="travel-icon">
+                    <i class="fas fa-plane"></i>
+                </div>
+                <h1>TravelNepal</h1>
+                <p>Your Gateway to Amazing Adventures in Nepal</p>
+                <p>Discover the beauty of Nepal with our premium travel packages and exceptional service.</p>
+            </div>
+            <div class="login-right">
+                <form method="POST" class="login-form show" id="loginForm">
+                    <h2><i class="fas fa-sign-in-alt me-2"></i>Welcome Back</h2>
+                    <?php if (isset($_SESSION['register_success'])): ?>
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i><?php echo $_SESSION['register_success']; unset($_SESSION['register_success']); ?>
                         </div>
-                        <h1>TravelNepal</h1>
-                        <p>Your Gateway to Amazing Adventures in Nepal</p>
-                        <p>Discover the beauty of Nepal with our premium travel packages and exceptional service.</p>
+                    <?php endif; ?>
+                    <?php if ($error_message): ?>
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i><?php echo $error_message; ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($debug_info && isset($_GET['debug'])): ?>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i><?php echo $debug_info; ?>
+                        </div>
+                    <?php endif; ?>
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="username" name="username" placeholder="Username" required>
+                        <label for="username"><i class="fas fa-user me-2"></i>Username</label>
                     </div>
-                </div>
-                <div class="col-lg-6">
-                    <div class="login-right">
-                        <form method="POST" class="login-form">
-                            <h2><i class="fas fa-sign-in-alt me-2"></i>Welcome Back</h2>
-                            
-                            <?php if ($error_message): ?>
-                                <div class="alert alert-danger">
-                                    <i class="fas fa-exclamation-triangle me-2"></i><?php echo $error_message; ?>
-                                </div>
-                            <?php endif; ?>
-
-                            <?php if ($debug_info && isset($_GET['debug'])): ?>
-                                <div class="alert alert-info">
-                                    <i class="fas fa-info-circle me-2"></i><?php echo $debug_info; ?>
-                                </div>
-                            <?php endif; ?>
-                            
-                            <div class="form-floating">
-                                <input type="text" class="form-control" id="username" name="username" placeholder="Username" required>
-                                <label for="username"><i class="fas fa-user me-2"></i>Username</label>
-                            </div>
-                            
-                            <div class="form-floating">
-                                <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
-                                <label for="password"><i class="fas fa-lock me-2"></i>Password</label>
-                            </div>
-                            
-                            <button type="submit" class="btn btn-login">
-                                <i class="fas fa-sign-in-alt me-2"></i>Login
-                            </button>
-                        </form>
-                        
-                        <!-- <div class="demo-credentials">
-                            <h6><i class="fas fa-info-circle me-2"></i>Demo Credentials</h6>
-                            <div class="credential-item">
-                                <strong>Main Admin:</strong> mainadmin / password123
-                            </div>
-                            <div class="credential-item">
-                                <strong>Branch Admin:</strong> kathmandu_admin / password123
-                            </div>
-                            <div class="credential-item">
-                                <strong>Customer:</strong> customer1 / password123
-                            </div>
-                            <div class="mt-3">
-                                <small class="text-muted">
-                                    <i class="fas fa-exclamation-triangle me-1"></i>
-                                    <strong>Troubleshooting:</strong> If login fails, ensure the database is set up correctly and try adding <code>?debug=1</code> to the URL for debug information.
-                                </small>
-                            </div>
-                        </div> -->
+                    <div class="form-floating">
+                        <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
+                        <label for="password"><i class="fas fa-lock me-2"></i>Password</label>
                     </div>
-                </div>
+                    <button type="submit" class="btn btn-login">
+                        <i class="fas fa-sign-in-alt me-2"></i>Login
+                    </button>
+                    <div class="text-center mt-3">
+                        <a href="#" id="showRegister" class="text-primary" style="cursor:pointer;">Create Account</a>
+                    </div>
+                </form>
+                <form method="POST" class="login-form hide" id="registerForm" autocomplete="off">
+                    <h2><i class="fas fa-user-plus me-2"></i>Create Account</h2>
+                    <?php if ($register_error): ?>
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i><?php echo $register_error; ?>
+                        </div>
+                    <?php endif; ?>
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="reg_full_name" name="reg_full_name" placeholder="Full Name" required autocomplete="off">
+                        <label for="reg_full_name"><i class="fas fa-user me-2"></i>Full Name</label>
+                    </div>
+                    <div class="form-floating">
+                        <input type="email" class="form-control" id="reg_email" name="reg_email" placeholder="Email" required autocomplete="off">
+                        <label for="reg_email"><i class="fas fa-envelope me-2"></i>Email</label>
+                    </div>
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="reg_username" name="reg_username" placeholder="Username" required autocomplete="off">
+                        <label for="reg_username"><i class="fas fa-user me-2"></i>Username</label>
+                    </div>
+                    <div class="form-floating">
+                        <input type="password" class="form-control" id="reg_password" name="reg_password" placeholder="Password" required autocomplete="off">
+                        <label for="reg_password"><i class="fas fa-lock me-2"></i>Password</label>
+                    </div>
+                    <div class="form-floating">
+                        <input type="password" class="form-control" id="reg_confirm_password" name="reg_confirm_password" placeholder="Confirm Password" required autocomplete="off">
+                        <label for="reg_confirm_password"><i class="fas fa-lock me-2"></i>Confirm Password</label>
+                    </div>
+                    <div class="form-floating">
+                        <input type="tel" class="form-control" id="reg_phone" name="reg_phone" placeholder="Phone (optional)" autocomplete="off">
+                        <label for="reg_phone"><i class="fas fa-phone me-2"></i>Phone (optional)</label>
+                    </div>
+                    <button type="submit" class="btn btn-login">
+                        <i class="fas fa-user-plus me-2"></i>Register
+                    </button>
+                    <div class="text-center mt-3">
+                        <a href="#" id="showLogin" class="text-primary" style="cursor:pointer;">Back to Login</a>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -299,6 +400,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 input.addEventListener('blur', function() {
                     this.parentElement.style.transform = 'scale(1)';
                 });
+            });
+
+            // Toggle between login and register forms and expand/collapse card
+            document.getElementById('showRegister').addEventListener('click', function(e) {
+                e.preventDefault();
+                document.getElementById('loginForm').classList.remove('show');
+                document.getElementById('loginForm').classList.add('hide');
+                document.getElementById('registerForm').classList.remove('hide');
+                document.getElementById('registerForm').classList.add('show');
+            });
+            document.getElementById('showLogin').addEventListener('click', function(e) {
+                e.preventDefault();
+                document.getElementById('registerForm').classList.remove('show');
+                document.getElementById('registerForm').classList.add('hide');
+                document.getElementById('loginForm').classList.remove('hide');
+                document.getElementById('loginForm').classList.add('show');
             });
         });
     </script>
