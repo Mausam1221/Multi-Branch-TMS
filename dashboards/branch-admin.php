@@ -383,7 +383,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                                         </span>
                                                     </td>
                                                     <td>
-                                                        <button class="btn btn-sm btn-outline-primary" onclick="viewBooking(<?php echo $booking['id']; ?>)">
+                                                        <button class="btn btn-sm btn-outline-info btn-view-booking" data-booking-id="<?php echo $booking['id']; ?>">
                                                             <i class="fas fa-eye"></i>
                                                         </button>
                                                         <?php if ($booking['status'] == 'pending'): ?>
@@ -391,6 +391,19 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                                             <i class="fas fa-check"></i>
                                                         </button>
                                                         <?php endif; ?>
+                                                    </td>
+                                                </tr>
+                                                <tr class="booking-details-row" id="details-<?php echo $booking['id']; ?>" style="display: none; background: #f9f9f9;">
+                                                    <td colspan="7">
+                                                        <div class="booking-details-content">
+                                                            <strong>Customer Email:</strong> <?php echo htmlspecialchars($booking['customer_email']); ?><br>
+                                                            <strong>Phone:</strong> <?php echo htmlspecialchars($booking['customer_phone']); ?><br>
+                                                            <strong>Number of People:</strong> <?php echo $booking['number_of_people']; ?><br>
+                                                            <strong>Booking Reference:</strong> <?php echo htmlspecialchars($booking['payment_reference'] ?? 'N/A'); ?><br>
+                                                            <strong>Status:</strong> <?php echo ucfirst($booking['status']); ?><br>
+                                                            <strong>Payment Status:</strong> <?php echo ucfirst($booking['payment_status'] ?? 'N/A'); ?><br>
+                                                            <strong>Booking ID:</strong> #<?php echo $booking['id']; ?>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                                 <?php endforeach; ?>
@@ -482,9 +495,22 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                                 </select>
                                             </td>
                                             <td>
-                                                <button class="btn btn-sm btn-outline-info" onclick="viewBooking(<?php echo $booking['id']; ?>)">
+                                                <button class="btn btn-sm btn-outline-info btn-view-booking" data-booking-id="<?php echo $booking['id']; ?>">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
+                                            </td>
+                                        </tr>
+                                        <tr class="booking-details-row" id="details-<?php echo $booking['id']; ?>" style="display: none; background: #f9f9f9;">
+                                            <td colspan="8">
+                                                <div class="booking-details-content">
+                                                    <strong>Customer Email:</strong> <?php echo htmlspecialchars($booking['customer_email']); ?><br>
+                                                    <strong>Phone:</strong> <?php echo htmlspecialchars($booking['customer_phone']); ?><br>
+                                                    <strong>Number of People:</strong> <?php echo $booking['number_of_people']; ?><br>
+                                                    <strong>Booking Reference:</strong> <?php echo htmlspecialchars($booking['payment_reference'] ?? 'N/A'); ?><br>
+                                                    <strong>Status:</strong> <?php echo ucfirst($booking['status']); ?><br>
+                                                    <strong>Payment Status:</strong> <?php echo ucfirst($booking['payment_status'] ?? 'N/A'); ?><br>
+                                                    <strong>Booking ID:</strong> #<?php echo $booking['id']; ?>
+                                                </div>
                                             </td>
                                         </tr>
                                         <?php endforeach; ?>
@@ -819,6 +845,21 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 
+    <!-- Booking Details Modal -->
+    <div class="modal fade" id="bookingDetailsModal" tabindex="-1" aria-labelledby="bookingDetailsModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="bookingDetailsModalLabel">Booking Details</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="bookingDetailsContent">
+            <!-- Details will be injected here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Navigation
@@ -1026,10 +1067,13 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
             });
         });
 
-        document.getElementById('notificationForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            alert('Notification settings saved successfully!');
-        });
+        var notificationForm = document.getElementById('notificationForm');
+        if (notificationForm) {
+            notificationForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                alert('Notification settings saved successfully!');
+            });
+        }
 
         // Function to preview profile picture
         function previewProfilePic(input) {
@@ -1041,6 +1085,37 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                 reader.readAsDataURL(input.files[0]);
             }
         }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Store the last opened bookingId to toggle modal on repeated click
+            let lastOpenedBookingId = null;
+            let bookingModal = new bootstrap.Modal(document.getElementById('bookingDetailsModal'));
+
+            document.querySelectorAll('.btn-view-booking').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var bookingId = this.getAttribute('data-booking-id');
+                    // If the same booking is clicked again, close the modal
+                    if (lastOpenedBookingId === bookingId && document.getElementById('bookingDetailsModal').classList.contains('show')) {
+                        bookingModal.hide();
+                        lastOpenedBookingId = null;
+                        return;
+                    }
+                    lastOpenedBookingId = bookingId;
+
+                    // Get the details from the hidden row (or directly from data attributes if you prefer)
+                    var detailsRow = document.getElementById('details-' + bookingId);
+                    var detailsHtml = detailsRow ? detailsRow.querySelector('.booking-details-content').innerHTML : 'No details found.';
+
+                    document.getElementById('bookingDetailsContent').innerHTML = detailsHtml;
+                    bookingModal.show();
+                });
+            });
+
+            // Reset lastOpenedBookingId when modal is closed
+            document.getElementById('bookingDetailsModal').addEventListener('hidden.bs.modal', function () {
+                lastOpenedBookingId = null;
+            });
+        });
     </script>
 </body>
 </html>
