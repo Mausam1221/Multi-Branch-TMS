@@ -547,7 +547,13 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <td><span class="badge bg-primary"><?php echo $customer['total_bookings']; ?></span></td>
                                             <td>Rs.<?php echo number_format($customer['total_spent']); ?></td>
                                             <td>
-                                                <button class="btn btn-sm btn-outline-info" onclick="viewCustomer(<?php echo $customer['id']; ?>)">
+                                                <button class="btn btn-sm btn-outline-info btn-view-customer"
+                                                    data-customer-id="<?php echo $customer['id']; ?>"
+                                                    data-customer-name="<?php echo htmlspecialchars($customer['full_name']); ?>"
+                                                    data-customer-email="<?php echo htmlspecialchars($customer['email']); ?>"
+                                                    data-customer-phone="<?php echo htmlspecialchars($customer['phone'] ?? 'N/A'); ?>"
+                                                    data-customer-total-bookings="<?php echo $customer['total_bookings']; ?>"
+                                                    data-customer-total-spent="<?php echo number_format($customer['total_spent']); ?>">
                                                     <i class="fas fa-eye"></i> View
                                                 </button>
                                             </td>
@@ -860,6 +866,21 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
       </div>
     </div>
 
+    <!-- Customer Details Modal -->
+    <div class="modal fade" id="customerDetailsModal" tabindex="-1" aria-labelledby="customerDetailsModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="customerDetailsModalLabel">Customer Details</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="customerDetailsContent">
+            <!-- Details will be injected here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Navigation
@@ -1114,6 +1135,20 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
             // Reset lastOpenedBookingId when modal is closed
             document.getElementById('bookingDetailsModal').addEventListener('hidden.bs.modal', function () {
                 lastOpenedBookingId = null;
+            });
+
+            document.querySelectorAll('.btn-view-customer').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var html = `
+                        <strong>Name:</strong> ${this.getAttribute('data-customer-name')}<br>
+                        <strong>Email:</strong> ${this.getAttribute('data-customer-email')}<br>
+                        <strong>Phone:</strong> ${this.getAttribute('data-customer-phone')}<br>
+                        <strong>Total Bookings:</strong> ${this.getAttribute('data-customer-total-bookings')}<br>
+                        <strong>Total Spent:</strong> Rs.${this.getAttribute('data-customer-total-spent')}
+                    `;
+                    document.getElementById('customerDetailsContent').innerHTML = html;
+                    new bootstrap.Modal(document.getElementById('customerDetailsModal')).show();
+                });
             });
         });
     </script>

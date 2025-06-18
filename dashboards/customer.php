@@ -42,6 +42,12 @@ $stats_query = "SELECT
 $stats_stmt = $db->prepare($stats_query);
 $stats_stmt->execute([$customer_id]);
 $customer_stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
+
+// Get reviews left by this customer
+$reviews_stmt = $db->prepare("SELECT booking_id FROM reviews WHERE customer_id = ?");
+$reviews_stmt->execute([$customer_id]);
+$customer_reviews = $reviews_stmt->fetchAll(PDO::FETCH_ASSOC);
+$reviewed_bookings = array_column($customer_reviews, 'booking_id');
 ?>
 
 <!DOCTYPE html>
@@ -791,6 +797,12 @@ $customer_stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+
+        .booking-filter-btn.active {
+            background: #667eea;
+            color: #fff;
+            border-color: #667eea;
+        }
     </style>
 </head>
 <body>
@@ -829,11 +841,11 @@ $customer_stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     <div class="stat-label">Total Trips</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number"><?php echo $customer_stats['completed_trips']; ?></div>
+                    <div class="stat-number"><?php echo $customer_stats['completed_trips'] ?? 0; ?></div>
                     <div class="stat-label">Completed</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number"><?php echo $customer_stats['confirmed_bookings']; ?></div>
+                    <div class="stat-number"><?php echo $customer_stats['confirmed_bookings'] ?? 0; ?></div>
                     <div class="stat-label">Upcoming</div>
                 </div>
                 <div class="stat-card">
@@ -932,6 +944,14 @@ $customer_stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 <div class="section-title">My Bookings</div>
             </div>
             
+            <!-- Booking Filters -->
+            <div class="booking-filters" style="margin-bottom: 16px; display: flex; gap: 10px;">
+                <button class="btn-outline booking-filter-btn active" data-status="all">All</button>
+                <button class="btn-outline booking-filter-btn" data-status="pending">Pending</button>
+                <button class="btn-outline booking-filter-btn" data-status="completed">Completed</button>
+                <button class="btn-outline booking-filter-btn" data-status="cancelled">Cancelled</button>
+            </div>
+            
             <?php if (empty($customer_bookings)): ?>
                 <div class="empty-state">
                     <i class="fas fa-calendar-times empty-icon"></i>
@@ -943,7 +963,7 @@ $customer_stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 </div>
             <?php else: ?>
                 <?php foreach ($customer_bookings as $booking): ?>
-                <div class="booking-item">
+                <div class="booking-item" data-status="<?php echo strtolower($booking['status']); ?>">
                     <div class="booking-content">
                         <div class="booking-image" style="background-image: url('<?php echo $booking['image_url']; ?>')"></div>
                         <div class="booking-details">
@@ -965,6 +985,20 @@ $customer_stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                             <div class="booking-amount">Rs.<?php echo number_format($booking['total_amount']); ?></div>
                             <div class="booking-id">#<?php echo $booking['id']; ?></div>
                         </div>
+                        <?php if ($booking['status'] !== 'cancelled' && $booking['status'] !== 'completed'): ?>
+                        <div>
+                            <button class="btn-outline btn-cancel-booking" data-booking-id="<?php echo $booking['id']; ?>">
+                                Cancel
+                            </button>
+                        </div>
+                        <?php endif; ?>
+                        <?php if ($booking['status'] === 'completed' && !in_array($booking['id'], $reviewed_bookings)): ?>
+                            <div>
+                                <button class="btn-outline btn-leave-review" data-booking-id="<?php echo $booking['id']; ?>">
+                                    Leave Review
+                                </button>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -996,28 +1030,61 @@ $customer_stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
     <!-- Bottom Navigation -->
     <div class="bottom-nav">
         <div class="nav-container">
-            <a href="#" class="nav-item active" onclick="showSection('home-section')">
+            <a href="#" class="nav-item active" onclick="showSection('home-section', this)">
                 <i class="fas fa-home"></i>
                 <span>Home</span>
             </a>
-            <a href="#" class="nav-item" onclick="showSection('packages-section')">
+            <a href="#" class="nav-item" onclick="showSection('packages-section', this)">
                 <i class="fas fa-compass"></i>
                 <span>Explore</span>
             </a>
-            <a href="#" class="nav-item" onclick="showSection('bookings-section')">
+            <a href="#" class="nav-item" onclick="showSection('bookings-section', this)">
                 <i class="fas fa-calendar-check"></i>
                 <span>Bookings</span>
             </a>
-            <a href="#" class="nav-item" onclick="showSection('profile-section')">
+            <a href="#" class="nav-item" onclick="showSection('profile-section', this)">
                 <i class="fas fa-user"></i>
                 <span>Profile</span>
             </a>
         </div>
     </div>
 
+    <!-- Review Modal -->
+    <div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <form id="reviewForm" class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="reviewModalLabel">Leave a Review</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="reviewBookingId" name="booking_id">
+            <div class="mb-3">
+              <label for="rating" class="form-label">Rating</label>
+              <select id="rating" name="rating" class="form-select" required>
+                <option value="">Select rating</option>
+                <option value="5">5 - Excellent</option>
+                <option value="4">4 - Good</option>
+                <option value="3">3 - Average</option>
+                <option value="2">2 - Poor</option>
+                <option value="1">1 - Terrible</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="review" class="form-label">Review</label>
+              <textarea id="review" name="review" class="form-control" rows="3" required></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Submit Review</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function showSection(sectionId) {
+        function showSection(sectionId, navItem = null) {
             // Hide all sections
             document.querySelectorAll('.section').forEach(section => {
                 section.classList.remove('active');
@@ -1031,10 +1098,14 @@ $customer_stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                 item.classList.remove('active');
             });
             
-            event.target.closest('.nav-item').classList.add('active');
+            if (navItem) {
+                navItem.classList.add('active');
+            }
             
             // Scroll to top
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Update the URL hash
+            window.location.hash = sectionId;
         }
         
         function filterPackages(category) {
@@ -1123,6 +1194,98 @@ $customer_stats = $stats_stmt->fetch(PDO::FETCH_ASSOC);
                     advancedChatbot.sendContextualWelcome();
                 }, 1000);
             }, 3000);
+        }
+    });
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.btn-cancel-booking').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var bookingId = this.getAttribute('data-booking-id');
+                if (confirm('Are you sure you want to cancel this booking?')) {
+                    fetch('../api/cancel-booking.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ booking_id: bookingId })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Booking cancelled successfully.');
+                            window.location.hash = 'bookings-section';
+                            location.reload();
+                        } else {
+                            alert('Failed to cancel booking: ' + (data.error || 'Unknown error'));
+                        }
+                    });
+                }
+            });
+        });
+    });
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show modal on button click
+        document.querySelectorAll('.btn-leave-review').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.getElementById('reviewBookingId').value = this.getAttribute('data-booking-id');
+                new bootstrap.Modal(document.getElementById('reviewModal')).show();
+            });
+        });
+
+        // Handle review form submission
+        document.getElementById('reviewForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = {
+                booking_id: document.getElementById('reviewBookingId').value,
+                rating: document.getElementById('rating').value,
+                review: document.getElementById('review').value
+            };
+            fetch('../api/submit-review.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Thank you for your review!');
+                    location.reload();
+                } else {
+                    alert('Failed to submit review: ' + (data.error || 'Unknown error'));
+                }
+            });
+        });
+    });
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Booking filter logic
+        document.querySelectorAll('.booking-filter-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                // Remove 'active' from all buttons
+                document.querySelectorAll('.booking-filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                var status = this.getAttribute('data-status');
+                document.querySelectorAll('.booking-item').forEach(function(item) {
+                    if (status === 'all' || item.getAttribute('data-status') === status) {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        });
+    });
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show section from hash on page load
+        if (window.location.hash) {
+            var sectionId = window.location.hash.substring(1);
+            if (document.getElementById(sectionId)) {
+                showSection(sectionId);
+            }
         }
     });
     </script>
