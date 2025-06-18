@@ -10,7 +10,7 @@ class Auth {
     
     public function login($username, $password) {
     try {
-        $query = "SELECT id, username, email, password, role, branch_id, full_name, status FROM users WHERE username = :username AND status = 'active'";
+        $query = "SELECT id, username, email, password, role, branch_id, full_name, profile_pic, status FROM users WHERE username = :username AND status = 'active'";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':username', $username);
         $stmt->execute();
@@ -30,6 +30,8 @@ class Auth {
                 $_SESSION['role'] = $user['role'];
                 $_SESSION['branch_id'] = $user['branch_id'];
                 $_SESSION['full_name'] = $user['full_name'];
+                $_SESSION['email'] = $user['email'];
+                $_SESSION['profile_pic'] = !empty($user['profile_pic']) ? $user['profile_pic'] : null;
                 $_SESSION['logged_in'] = true;
                 
                 error_log("Login successful for: " . $user['username']);
@@ -43,6 +45,8 @@ class Auth {
                     $_SESSION['role'] = $user['role'];
                     $_SESSION['branch_id'] = $user['branch_id'];
                     $_SESSION['full_name'] = $user['full_name'];
+                    $_SESSION['email'] = $user['email'];
+                    $_SESSION['profile_pic'] = !empty($user['profile_pic']) ? $user['profile_pic'] : null;
                     $_SESSION['logged_in'] = true;
                     
                     error_log("Login successful with fallback for: " . $user['username']);

@@ -66,25 +66,64 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     }
                 }
 
+                // Handle profile picture upload
+                $profile_pic_path = null;
+                if (isset($_FILES['profile_pic']) && $_FILES['profile_pic']['error'] == 0) {
+                    $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                    $max_size = 5 * 1024 * 1024; // 5MB
+                    if (in_array($_FILES['profile_pic']['type'], $allowed_types) && $_FILES['profile_pic']['size'] <= $max_size) {
+                        $upload_dir = '../uploads/profile_pics/';
+                        if (!is_dir($upload_dir)) {
+                            mkdir($upload_dir, 0755, true);
+                        }
+                        $file_extension = pathinfo($_FILES['profile_pic']['name'], PATHINFO_EXTENSION);
+                        $filename = 'profile_' . $_SESSION['user_id'] . '_' . time() . '.' . $file_extension;
+                        $filepath = $upload_dir . $filename;
+                        if (move_uploaded_file($_FILES['profile_pic']['tmp_name'], $filepath)) {
+                            $profile_pic_path = 'uploads/profile_pics/' . $filename;
+                            // Delete old profile picture if exists
+                            if (!empty($_SESSION['profile_pic']) && $_SESSION['profile_pic'] != 'https://via.placeholder.com/150') {
+                                $old_file = '../' . $_SESSION['profile_pic'];
+                                if (file_exists($old_file)) {
+                                    unlink($old_file);
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Update user information
                 if (!empty($_POST['new_password'])) {
                     // Update with new password
                     $hashed_password = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
-                    $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ?, password = ? WHERE id = ?");
-                    $result = $stmt->execute([$_POST['full_name'], $_POST['email'], $hashed_password, $_SESSION['user_id']]);
+                    if ($profile_pic_path) {
+                        $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ?, password = ?, profile_pic = ? WHERE id = ?");
+                        $result = $stmt->execute([$_POST['full_name'], $_POST['email'], $hashed_password, $profile_pic_path, $_SESSION['user_id']]);
+                    } else {
+                        $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ?, password = ? WHERE id = ?");
+                        $result = $stmt->execute([$_POST['full_name'], $_POST['email'], $hashed_password, $_SESSION['user_id']]);
+                    }
                 } else {
                     // Update without password change
-                    $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ? WHERE id = ?");
-                    $result = $stmt->execute([$_POST['full_name'], $_POST['email'], $_SESSION['user_id']]);
+                    if ($profile_pic_path) {
+                        $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ?, profile_pic = ? WHERE id = ?");
+                        $result = $stmt->execute([$_POST['full_name'], $_POST['email'], $profile_pic_path, $_SESSION['user_id']]);
+                    } else {
+                        $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ? WHERE id = ?");
+                        $result = $stmt->execute([$_POST['full_name'], $_POST['email'], $_SESSION['user_id']]);
+                    }
                 }
 
                 if ($result) {
                     // Update session data
                     $_SESSION['full_name'] = $_POST['full_name'];
                     $_SESSION['email'] = $_POST['email'];
+                    if ($profile_pic_path) {
+                        $_SESSION['profile_pic'] = $profile_pic_path;
+                    }
                 }
 
-                echo json_encode(['success' => $result]);
+                echo json_encode(['success' => $result, 'profile_pic' => $profile_pic_path]);
 
             } catch (Exception $e) {
                 error_log("Profile update error: " . $e->getMessage());
@@ -211,7 +250,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                     <h1 id="page-title">Branch Admin Dashboard</h1>
                     <div class="user-info">
                         <span>Welcome, <?php echo $_SESSION['full_name']; ?></span>
-                        <img src="https://via.placeholder.com/40" alt="Profile" class="rounded-circle ms-2">
+                        <img src="<?php echo !empty($_SESSION['profile_pic']) ? '../' . $_SESSION['profile_pic'] : 'https://via.placeholder.com/40'; ?>" alt="Profile" class="rounded-circle ms-2">
                     </div>
                 </div>
             </header>
@@ -628,7 +667,22 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <h5><i class="fas fa-user me-2"></i>Admin Profile</h5>
                                 </div>
                                 <div class="card-body">
-                                    <form id="adminProfileForm">
+                                    <form id="adminProfileForm" enctype="multipart/form-data">
+                                        <!-- Profile Picture Section -->
+                                        <div class="text-center mb-4">
+                                            <div class="position-relative d-inline-block">
+                                                <img id="profilePreview" src="<?php echo !empty($_SESSION['profile_pic']) ? '../' . $_SESSION['profile_pic'] : 'https://via.placeholder.com/150'; ?>" 
+                                                     alt="Profile Picture" class="rounded-circle" style="width: 150px; height: 150px; object-fit: cover; border: 3px solid #dee2e6;">
+                                                <label for="profile_pic" class="position-absolute bottom-0 end-0 bg-primary text-white rounded-circle p-2" style="cursor: pointer;">
+                                                    <i class="fas fa-camera"></i>
+                                                </label>
+                                            </div>
+                                            <input type="file" id="profile_pic" name="profile_pic" accept="image/jpeg,image/png,image/gif,image/webp" style="display: none;" onchange="previewProfilePic(this)">
+                                            <div class="mt-2">
+                                                <small class="text-muted">Click the camera icon to change profile picture</small>
+                                            </div>
+                                        </div>
+                                        
                                         <div class="form-floating mb-3">
                                             <input type="text" class="form-control" id="admin_name" value="<?php echo $_SESSION['full_name']; ?>">
                                             <label for="admin_name">Full Name</label>
@@ -940,6 +994,12 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
             formData.append('current_password', document.getElementById('current_password').value);
             formData.append('new_password', document.getElementById('new_password').value);
 
+            // Add profile picture if selected
+            const profilePicInput = document.getElementById('profile_pic');
+            if (profilePicInput.files && profilePicInput.files[0]) {
+                formData.append('profile_pic', profilePicInput.files[0]);
+            }
+
             fetch('', {
                 method: 'POST',
                 body: formData
@@ -948,6 +1008,13 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
             .then(data => {
                 if (data.success) {
                     alert('Admin profile updated successfully!');
+                    // Update the displayed name in the header
+                    document.querySelector('.user-info span').textContent = 'Welcome, ' + document.getElementById('admin_name').value;
+                    // Update profile picture in header if uploaded
+                    if (data.profile_pic) {
+                        document.querySelector('.user-info img').src = '../' + data.profile_pic;
+                        document.getElementById('profilePreview').src = '../' + data.profile_pic;
+                    }
                     location.reload();
                 } else {
                     alert(data.message || 'Error updating admin profile');
@@ -963,6 +1030,17 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
             e.preventDefault();
             alert('Notification settings saved successfully!');
         });
+
+        // Function to preview profile picture
+        function previewProfilePic(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('profilePreview').src = e.target.result;
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
     </script>
 </body>
 </html>
