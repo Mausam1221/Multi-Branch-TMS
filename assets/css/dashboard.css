@@ -4,6 +4,10 @@ body {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
+body.dark-mode {
+  background: #23272f;
+}
+
 .dashboard-wrapper {
   display: flex;
   min-height: 100vh;
@@ -314,4 +318,93 @@ body {
     transform: translateX(0);
     opacity: 1;
   }
+}
+
+body.dark-mode #bookings-section,
+body.dark-mode #bookings-section .section-header,
+body.dark-mode #bookings-section .section-title,
+body.dark-mode #bookings-section .booking-item,
+body.dark-mode #bookings-section .booking-content,
+body.dark-mode #bookings-section .booking-details,
+body.dark-mode #bookings-section .booking-meta,
+body.dark-mode #bookings-section .booking-status,
+body.dark-mode #bookings-section .booking-price,
+body.dark-mode #bookings-section .booking-amount,
+body.dark-mode #bookings-section .booking-id,
+body.dark-mode #bookings-section .empty-state,
+body.dark-mode #bookings-section .empty-title,
+body.dark-mode #bookings-section .empty-subtitle {
+  color: #fff !important;
+}
+body.dark-mode #bookings-section {
+  background: #23272f;
+}
+body.dark-mode #bookings-section .booking-item {
+  background: #2d323c;
+  border-color: #444;
+}
+body.dark-mode #bookings-section .btn-outline {
+  color: #fff;
+  border-color: #fff;
+}
+body.dark-mode #bookings-section .btn-outline:hover {
+  background: #fff;
+  color: #23272f;
+}
+
+body.dark-mode #bookings-section .section-header .section-title,
+body.dark-mode #bookings-section .section-title,
+body.dark-mode #bookings-section .section-header,
+body.dark-mode #bookings-section {
+  color: #fff !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+body.dark-mode #bookings-section .section-title * {
+  color: #fff !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.slide-notification {
+  position: fixed;
+  top: 30px;
+  left: 30px;
+  min-width: 260px;
+  max-width: 350px;
+  background: #23272f;
+  color: #fff;
+  padding: 16px 24px 16px 18px;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  font-size: 1rem;
+  z-index: 9999;
+  opacity: 0;
+  transform: translateX(-120%);
+  transition: all 0.5s cubic-bezier(.77,0,.18,1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.slide-notification.success { background: #23272f; }
+.slide-notification.error { background: #b91c1c; }
+.slide-notification.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+.slide-notification.hide {
+  opacity: 0;
+  transform: translateX(120%);
+}
+.slide-notification .close-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.2em;
+  margin-left: auto;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.slide-notification .close-btn:hover {
+  opacity: 1;
 }

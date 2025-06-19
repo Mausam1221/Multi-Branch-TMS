@@ -48,6 +48,36 @@ $reviews_stmt = $db->prepare("SELECT booking_id FROM reviews WHERE customer_id =
 $reviews_stmt->execute([$customer_id]);
 $customer_reviews = $reviews_stmt->fetchAll(PDO::FETCH_ASSOC);
 $reviewed_bookings = array_column($customer_reviews, 'booking_id');
+
+// Get detailed customer information
+$customer_query = "SELECT u.*, u.created_at as joined_date 
+                   FROM users u 
+                   WHERE u.id = ? AND u.role = 'customer'";
+$customer_stmt = $db->prepare($customer_query);
+$customer_stmt->execute([$customer_id]);
+$customer_details = $customer_stmt->fetch(PDO::FETCH_ASSOC);
+
+// Get customer preferences and settings
+$preferences_query = "SELECT * FROM customer_preferences WHERE user_id = ?";
+$preferences_stmt = $db->prepare($preferences_query);
+$preferences_stmt->execute([$customer_id]);
+$customer_preferences = $preferences_stmt->fetch(PDO::FETCH_ASSOC);
+
+// Get recent activity
+$activity_query = "SELECT 'booking' as type, b.created_at, p.name as title, b.status 
+                   FROM bookings b 
+                   JOIN packages p ON b.package_id = p.id 
+                   WHERE b.customer_id = ? 
+                   UNION ALL 
+                   SELECT 'review' as type, r.created_at, p.name as title, 'reviewed' as status 
+                   FROM reviews r 
+                   JOIN bookings b ON r.booking_id = b.id 
+                   JOIN packages p ON b.package_id = p.id 
+                   WHERE r.customer_id = ? 
+                   ORDER BY created_at DESC LIMIT 10";
+$activity_stmt = $db->prepare($activity_query);
+$activity_stmt->execute([$customer_id, $customer_id]);
+$recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -490,7 +520,7 @@ $reviewed_bookings = array_column($customer_reviews, 'booking_id');
             font-size: 14px;
             transition: all 0.3s ease;
             text-decoration: none;
-            display: inline-block;
+            display: inline-button;
         }
 
         .btn-primary:hover {
@@ -509,7 +539,7 @@ $reviewed_bookings = array_column($customer_reviews, 'booking_id');
             font-size: 14px;
             transition: all 0.3s ease;
             text-decoration: none;
-            display: inline-block;
+            display: inline-button;
         }
 
         .btn-outline:hover {
@@ -803,25 +833,406 @@ $reviewed_bookings = array_column($customer_reviews, 'booking_id');
             color: #fff;
             border-color: #667eea;
         }
+
+        /* Enhanced Profile Styles */
+        .profile-details {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .profile-detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .profile-detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-size: 14px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            color: #1e293b;
+            font-weight: 600;
+        }
+
+        .profile-sections {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .profile-section-btn {
+            flex: 1;
+            padding: 12px;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .profile-section-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .profile-subsection {
+            display: none;
+        }
+
+        .profile-subsection.active {
+            display: block;
+        }
+
+        .settings-item {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .settings-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .settings-description {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 12px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background: #cbd5e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .toggle-switch.active {
+            background: #667eea;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(26px);
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+        }
+
+        .activity-booking { background: #667eea; }
+        .activity-review { background: #10b981; }
+
+        .activity-content {
+            flex: 1;
+        }
+
+        .activity-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+
+        .activity-time {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .activity-status {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .status-confirmed { background: #e6fffa; color: #00b894; }
+        .status-pending { background: #fef5e7; color: #d69e2e; }
+        .status-completed { background: #f0fff4; color: #38a169; }
+        .status-reviewed { background: #f0f9ff; color: #0ea5e9; }
+
+        .edit-profile-form {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 12px 24px;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-cancel {
+            background: transparent;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 10px 24px;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-left: 12px;
+        }
+
+        .btn-cancel:hover {
+            border-color: #cbd5e0;
+            background: #f8fafc;
+        }
+
+        .profile-actions-row {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .achievement-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #f0f9ff;
+            color: #0ea5e9;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 4px;
+        }
+
+        .achievement-badge i {
+            font-size: 10px;
+        }
+
+        /* Dark Mode Styles */
+        body.dark-mode {
+            background: #1a202c;
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .app-header {
+            background: #2d3748;
+            border-bottom-color: #4a5568;
+        }
+
+        body.dark-mode .search-bar {
+            background: #4a5568;
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .search-bar:focus {
+            background: #2d3748;
+        }
+
+        body.dark-mode .search-bar::placeholder {
+            color: #a0aec0;
+        }
+
+        body.dark-mode .stat-card,
+        body.dark-mode .trip-card,
+        body.dark-mode .category-item,
+        body.dark-mode .booking-item,
+        body.dark-mode .profile-card,
+        body.dark-mode .profile-details,
+        body.dark-mode .settings-item,
+        body.dark-mode .edit-profile-form {
+            background: #2d3748;
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .stat-number,
+        body.dark-mode .trip-name,
+        body.dark-mode .booking-name,
+        body.dark-mode .profile-name,
+        body.dark-mode .detail-value,
+        body.dark-mode .settings-title,
+        body.dark-mode .activity-title {
+            color: #f7fafc;
+        }
+
+        body.dark-mode .stat-label,
+        body.dark-mode .trip-location,
+        body.dark-mode .trip-meta,
+        body.dark-mode .booking-meta,
+        body.dark-mode .profile-role,
+        body.dark-mode .detail-label,
+        body.dark-mode .settings-description,
+        body.dark-mode .activity-time {
+            color: #a0aec0;
+        }
+
+        body.dark-mode .bottom-nav {
+            background: #2d3748;
+            border-top-color: #4a5568;
+        }
+
+        body.dark-mode .nav-item {
+            color: #a0aec0;
+        }
+
+        body.dark-mode .nav-item.active {
+            color: #4299e1;
+            background: #2c5282;
+        }
+
+        body.dark-mode .form-input {
+            background: #4a5568;
+            border-color: #718096;
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .form-input:focus {
+            border-color: #4299e1;
+        }
+
+        body.dark-mode .form-input::placeholder {
+            color: #a0aec0;
+        }
+
+        body.dark-mode .profile-detail-item,
+        body.dark-mode .activity-item {
+            border-bottom-color: #4a5568;
+        }
+
+        body.dark-mode .empty-state {
+            background: #2d3748;
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .empty-icon {
+            color: #4a5568;
+        }
+
+        body.dark-mode .profile-details h4 {
+            color: #f7fafc !important;
+        }
+
+        body.dark-mode .modal-title#editProfileModalLabel {
+            color: #23272f !important;
+        }
     </style>
 </head>
 <body>
     <!-- Header -->
-    <div class="app-header">
-        <div class="header-top">
-            <div class="location-info">
-                <i class="fas fa-map-marker-alt"></i>
-                <span class="location-text">Nepal</span>
-            </div>
-            <div class="user-avatar">
-                <?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?>
-            </div>
+    <div id="location-search-bar">
+      <div class="header-top">
+        <div class="location-info">
+          <i class="fas fa-map-marker-alt"></i>
+          <span class="location-text">Nepal</span>
         </div>
-        
-        <div class="search-container">
-            <i class="fas fa-search search-icon"></i>
-            <input type="text" class="search-bar" placeholder="Search destinations..." id="globalSearch">
+        <div class="user-avatar" id="profile-avatar-initial">
+          <?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?>
         </div>
+      </div>
+      <div class="search-container">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" class="search-bar" placeholder="Search destinations..." id="globalSearch">
+      </div>
     </div>
 
     <!-- Main Content -->
@@ -987,14 +1398,14 @@ $reviewed_bookings = array_column($customer_reviews, 'booking_id');
                         </div>
                         <?php if ($booking['status'] !== 'cancelled' && $booking['status'] !== 'completed'): ?>
                         <div>
-                            <button class="btn-outline btn-cancel-booking" data-booking-id="<?php echo $booking['id']; ?>">
+                            <button type="button" class="btn-outline btn-cancel-booking" data-booking-id="<?php echo $booking['id']; ?>">
                                 Cancel
                             </button>
                         </div>
                         <?php endif; ?>
                         <?php if ($booking['status'] === 'completed' && !in_array($booking['id'], $reviewed_bookings)): ?>
                             <div>
-                                <button class="btn-outline btn-leave-review" data-booking-id="<?php echo $booking['id']; ?>">
+                                <button type="button" class="btn-outline btn-leave-review" data-booking-id="<?php echo $booking['id']; ?>">
                                     Leave Review
                                 </button>
                             </div>
@@ -1007,16 +1418,163 @@ $reviewed_bookings = array_column($customer_reviews, 'booking_id');
 
         <!-- Profile Section -->
         <div id="profile-section" class="section">
+            <!-- Profile Header -->
             <div class="profile-card">
                 <div class="profile-avatar">
                     <?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?>
                 </div>
-                <div class="profile-name"><?php echo $_SESSION['full_name']; ?></div>
-                <div class="profile-role">Travel Explorer</div>
+                <div class="profile-name" id="profile-header-full-name"><?php echo $_SESSION['full_name']; ?></div>
+                <div class="profile-role">
+                    <?php 
+                    $total_trips = $customer_stats['completed_trips'] ?? 0;
+                    if ($total_trips >= 10) {
+                        echo "Travel Expert";
+                    } elseif ($total_trips >= 5) {
+                        echo "Adventure Seeker";
+                    } elseif ($total_trips >= 2) {
+                        echo "Travel Explorer";
+                    } else {
+                        echo "New Traveler";
+                    }
+                    ?>
+                </div>
                 
-                <div class="profile-actions">
-                    <button class="btn-primary">Edit Profile</button>
+                <!-- Achievement Badges -->
+                <div style="margin: 16px 0;">
+                    <?php if ($customer_stats['total_bookings'] >= 1): ?>
+                        <span class="achievement-badge">
+                            <i class="fas fa-star"></i> First Trip
+                        </span>
+                    <?php endif; ?>
+                    <?php if ($customer_stats['completed_trips'] >= 5): ?>
+                        <span class="achievement-badge">
+                            <i class="fas fa-trophy"></i> Explorer
+                        </span>
+                    <?php endif; ?>
+                    <?php if ($customer_stats['total_spent'] >= 50000): ?>
+                        <span class="achievement-badge">
+                            <i class="fas fa-crown"></i> VIP Traveler
+                        </span>
+                    <?php endif; ?>
+                </div>
+                
+                <div class="profile-actions-row">
+                    <button type="button" class="btn-primary" id="editProfileBtn">Edit Profile</button>
                     <a href="../config/logout.php" class="btn-outline">Logout</a>
+                </div>
+            </div>
+
+            <!-- Profile Navigation -->
+            <div class="profile-sections">
+                <button type="button" class="profile-section-btn active" onclick="showProfileSubsection('details')">
+                    <i class="fas fa-user"></i> Details
+                </button>
+                <button type="button" class="profile-section-btn" onclick="showProfileSubsection('activity')">
+                    <i class="fas fa-history"></i> Activity
+                </button>
+                <button type="button" class="profile-section-btn" onclick="showProfileSubsection('settings')">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
+            </div>
+
+            <!-- Profile Details Subsection -->
+            <div id="profile-details" class="profile-subsection active">
+                <div class="profile-details">
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Full Name</span>
+                        <span class="detail-value" id="profile-full-name"><?php echo $customer_details['full_name'] ?? $_SESSION['full_name']; ?></span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Email</span>
+                        <span class="detail-value" id="profile-email"><?php echo $customer_details['email'] ?? $_SESSION['email']; ?></span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Phone</span>
+                        <span class="detail-value" id="profile-phone"><?php echo $customer_details['phone'] ?? 'Not provided'; ?></span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Address</span>
+                        <span class="detail-value" id="profile-address"><?php echo $customer_details['address'] ?? 'Not provided'; ?></span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Date of Birth</span>
+                        <span class="detail-value" id="profile-date-of-birth"><?php echo $customer_details['date_of_birth'] ?? 'Not provided'; ?></span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Emergency Contact</span>
+                        <span class="detail-value" id="profile-emergency-contact"><?php echo $customer_details['emergency_contact'] ?? 'Not provided'; ?></span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Travel Preferences</span>
+                        <span class="detail-value" id="profile-travel-preferences"><?php echo $customer_details['travel_preferences'] ?? 'Not provided'; ?></span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Date Joined</span>
+                        <span class="detail-value"><?php echo isset($customer_details['joined_date']) ? date('M d, Y', strtotime($customer_details['joined_date'])) : 'Not available'; ?></span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Total Trips</span>
+                        <span class="detail-value"><?php echo $customer_stats['total_bookings'] ?? 0; ?></span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Completed Trips</span>
+                        <span class="detail-value"><?php echo $customer_stats['completed_trips'] ?? 0; ?></span>
+                    </div>
+                    <div class="profile-detail-item">
+                        <span class="detail-label">Total Spent</span>
+                        <span class="detail-value">Rs.<?php echo number_format($customer_stats['total_spent'] ?? 0); ?></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Feed Subsection -->
+            <div id="profile-activity" class="profile-subsection">
+                <div class="profile-details">
+                    <h4 style="margin-bottom: 16px; color: #1e293b;">Recent Activity</h4>
+                    <?php if (empty($recent_activity)): ?>
+                        <div class="empty-state">
+                            <i class="fas fa-clock empty-icon"></i>
+                            <div class="empty-title">No Recent Activity</div>
+                            <div class="empty-subtitle">Start booking trips to see your activity here!</div>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($recent_activity as $activity): ?>
+                            <div class="activity-item">
+                                <div class="activity-icon activity-<?php echo $activity['type']; ?>">
+                                    <i class="fas fa-<?php echo $activity['type'] === 'booking' ? 'calendar-check' : 'star'; ?>"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title"><?php echo $activity['title']; ?></div>
+                                    <div class="activity-time"><?php echo date('M d, Y H:i', strtotime($activity['created_at'])); ?></div>
+                                </div>
+                                <div class="activity-status status-<?php echo $activity['status']; ?>">
+                                    <?php echo ucfirst($activity['status']); ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Settings Subsection -->
+            <div id="profile-settings" class="profile-subsection">
+                <div class="settings-item">
+                    <div class="settings-header">
+                        <div class="settings-title">Dark Mode</div>
+                        <div class="toggle-switch" onclick="toggleDarkMode.call(this)"></div>
+                    </div>
+                    <div class="settings-description">Switch to dark theme for better viewing</div>
+                </div>
+
+                <div class="settings-item">
+                    <div class="settings-header">
+                        <div class="settings-title">Language</div>
+                        <select class="form-input" style="width: auto; padding: 8px 12px; font-size: 13px;" onchange="changeLanguage(this.value)">
+                            <option value="en" <?php echo ($customer_preferences['language'] ?? 'en') === 'en' ? 'selected' : ''; ?>>English</option>
+                            <option value="ne" <?php echo ($customer_preferences['language'] ?? 'en') === 'ne' ? 'selected' : ''; ?>>नेपाली</option>
+                        </select>
+                    </div>
+                    <div class="settings-description">Choose your preferred language</div>
                 </div>
             </div>
         </div>
@@ -1077,6 +1635,58 @@ $reviewed_bookings = array_column($customer_reviews, 'booking_id');
           </div>
           <div class="modal-footer">
             <button type="submit" class="btn btn-primary">Submit Review</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <div class="modal fade" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <form id="editProfileForm" class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="editProfileModalLabel">Edit Profile</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="edit-full-name" class="form-label">Full Name</label>
+              <input type="text" class="form-control" id="edit-full-name" name="full_name" required value="<?php echo htmlspecialchars($customer_details['full_name'] ?? $_SESSION['full_name']); ?>">
+            </div>
+            
+            <div class="mb-3">
+              <label for="edit-email" class="form-label">Email</label>
+              <input type="email" class="form-control" id="edit-email" name="email" required value="<?php echo htmlspecialchars($customer_details['email'] ?? $_SESSION['email']); ?>">
+            </div>
+            
+            <div class="mb-3">
+              <label for="edit-phone" class="form-label">Phone Number</label>
+              <input type="tel" class="form-control" id="edit-phone" name="phone" value="<?php echo htmlspecialchars($customer_details['phone'] ?? ''); ?>" placeholder="Enter your phone number">
+            </div>
+            
+            <div class="mb-3">
+              <label for="edit-address" class="form-label">Address</label>
+              <textarea class="form-control" id="edit-address" name="address"><?php echo htmlspecialchars($customer_details['address'] ?? ''); ?></textarea>
+            </div>
+            
+            <div class="mb-3">
+              <label for="edit-date-of-birth" class="form-label">Date of Birth</label>
+              <input type="date" class="form-control" id="edit-date-of-birth" name="date_of_birth" value="<?php echo htmlspecialchars($customer_details['date_of_birth'] ?? ''); ?>">
+            </div>
+            
+            <div class="mb-3">
+              <label for="edit-emergency-contact" class="form-label">Emergency Contact</label>
+              <input type="tel" class="form-control" id="edit-emergency-contact" name="emergency_contact" value="<?php echo htmlspecialchars($customer_details['emergency_contact'] ?? ''); ?>" placeholder="Emergency contact number">
+            </div>
+            
+            <div class="mb-3">
+              <label for="edit-travel-preferences" class="form-label">Travel Preferences</label>
+              <textarea class="form-control" id="edit-travel-preferences" name="travel_preferences"><?php echo htmlspecialchars($customer_details['travel_preferences'] ?? ''); ?></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           </div>
         </form>
       </div>
@@ -1288,6 +1898,359 @@ $reviewed_bookings = array_column($customer_reviews, 'booking_id');
             }
         }
     });
+    </script>
+    <script>
+    // Profile Management Functions
+    function cleanValue(val) {
+        return (val === 'Not provided' || val === 'Not available' || val === 'dd/mm/yyyy') ? '' : val;
+    }
+
+    // Replace the showProfileSubsection definition with this:
+    window.showProfileSubsection = function(subsection) {
+        if (subsection === 'edit') {
+            populateEditProfileForm();
+        }
+        // Hide all profile subsections
+        document.querySelectorAll('.profile-subsection').forEach(sub => {
+            sub.classList.remove('active');
+        });
+        // Show selected subsection
+        document.getElementById('profile-' + subsection).classList.add('active');
+        // Update navigation buttons
+        document.querySelectorAll('.profile-section-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        // Find and activate the corresponding button
+        const buttonMap = {
+            'details': 0,
+            'activity': 1,
+            'settings': 2,
+            'edit': 0 // Edit uses the details button
+        };
+        if (subsection !== 'edit') {
+            document.querySelectorAll('.profile-section-btn')[buttonMap[subsection]].classList.add('active');
+        }
+    };
+    </script>
+    <script>
+    window.toggleDarkMode = function() {
+        const toggle = this;
+        toggle.classList.toggle('active');
+        if (toggle.classList.contains('active')) {
+            document.body.classList.add('dark-mode');
+            localStorage.setItem('darkMode', 'true');
+        } else {
+            document.body.classList.remove('dark-mode');
+            localStorage.setItem('darkMode', 'false');
+        }
+    };
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Sync dark mode toggle and body class
+        const darkModeOn = localStorage.getItem('darkMode') === 'true';
+        if (darkModeOn) {
+            document.body.classList.add('dark-mode');
+        } else {
+            document.body.classList.remove('dark-mode');
+        }
+        // Set the toggle visual state
+        document.querySelectorAll('.settings-item').forEach(function(item) {
+            if (item.textContent.includes('Dark Mode')) {
+                var toggle = item.querySelector('.toggle-switch');
+                if (toggle) {
+                    if (darkModeOn) {
+                        toggle.classList.add('active');
+                    } else {
+                        toggle.classList.remove('active');
+                    }
+                }
+            }
+        });
+    });
+    </script>
+    <script>
+    function updateLocationSearchBarVisibility() {
+        const bar = document.getElementById('location-search-bar');
+        if (!bar) return;
+        // Get the currently active section
+        const activeSection = document.querySelector('.section.active');
+        if (!activeSection) return;
+        const id = activeSection.id;
+        // Show only on home-section and packages-section (explore)
+        if (id === 'home-section' || id === 'packages-section') {
+            bar.style.display = '';
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+    // Call this function after any section switch
+    // (nav-item click triggers section switch)
+    document.querySelectorAll('.nav-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+            setTimeout(updateLocationSearchBarVisibility, 10);
+        });
+    });
+    // Also call on page load
+    document.addEventListener('DOMContentLoaded', updateLocationSearchBarVisibility);
+    </script>
+    <script>
+    function updateBookingTitleColor() {
+        var bookingTitle = document.querySelector('#bookings-section .section-title');
+        if (bookingTitle) {
+            if (document.body.classList.contains('dark-mode')) {
+                bookingTitle.style.color = '#fff';
+                bookingTitle.style.opacity = '1';
+                bookingTitle.style.fontWeight = '700';
+            } else {
+                bookingTitle.style.color = '';
+                bookingTitle.style.opacity = '';
+                bookingTitle.style.fontWeight = '';
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updateBookingTitleColor();
+
+        // Listen for dark mode toggle
+        document.querySelectorAll('.toggle-switch').forEach(function(toggle) {
+            toggle.addEventListener('click', function() {
+                setTimeout(updateBookingTitleColor, 10);
+            });
+        });
+
+        // Edit Profile Modal open
+        const editProfileBtn = document.getElementById('editProfileBtn');
+        if (editProfileBtn) {
+            editProfileBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const modal = document.getElementById('editProfileModal');
+                if (modal) {
+                    new bootstrap.Modal(modal).show();
+                }
+            });
+        }
+
+        // Edit Profile AJAX submit
+        const editProfileForm = document.getElementById('editProfileForm');
+        if (editProfileForm) {
+            editProfileForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                // Validation
+                const fullName = document.getElementById('edit-full-name').value.trim();
+                const email = document.getElementById('edit-email').value.trim();
+                const phone = document.getElementById('edit-phone').value.trim();
+                const address = document.getElementById('edit-address').value.trim();
+                const dateOfBirth = document.getElementById('edit-date-of-birth').value.trim();
+                const emergencyContact = document.getElementById('edit-emergency-contact').value.trim();
+                const travelPreferences = document.getElementById('edit-travel-preferences').value.trim();
+                // Email regex
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                // Phone regex (simple, allows +, numbers, spaces, dashes)
+                const phoneRegex = /^[+\d][\d\s-]{7,}$/;
+                // Date validation
+                let today = new Date();
+                let dobDate = dateOfBirth ? new Date(dateOfBirth) : null;
+                // Validation logic
+                function showError(msg) {
+                  showNotification(msg, 'error');
+                }
+                if (!fullName || fullName.length < 2) {
+                  showError('Full Name is required and must be at least 2 characters.');
+                  return;
+                }
+                if (!email || !emailRegex.test(email)) {
+                  showError('Please enter a valid email address.');
+                  return;
+                }
+                if (phone && !phoneRegex.test(phone)) {
+                  showError('Please enter a valid phone number.');
+                  return;
+                }
+                if (emergencyContact && !phoneRegex.test(emergencyContact)) {
+                  showError('Please enter a valid emergency contact number.');
+                  return;
+                }
+                if (dateOfBirth) {
+                  if (isNaN(dobDate.getTime())) {
+                    showError('Please enter a valid date of birth.');
+                    return;
+                  }
+                  if (dobDate > today) {
+                    showError('Date of birth cannot be in the future.');
+                    return;
+                  }
+                }
+                // If all valid, proceed
+                const formData = {
+                    full_name: fullName,
+                    email: email,
+                    phone: phone,
+                    address: address,
+                    date_of_birth: dateOfBirth,
+                    emergency_contact: emergencyContact,
+                    travel_preferences: travelPreferences
+                };
+                const submitBtn = this.querySelector('button[type="submit"]');
+                const originalText = submitBtn.textContent;
+                submitBtn.textContent = 'Saving...';
+                submitBtn.disabled = true;
+                fetch('../api/update-profile.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update profile fields on the page
+                        document.getElementById('profile-full-name').textContent = formData.full_name;
+                        document.getElementById('profile-header-full-name').textContent = formData.full_name;
+                        document.getElementById('profile-email').textContent = formData.email;
+                        document.getElementById('profile-phone').textContent = formData.phone || 'Not provided';
+                        document.getElementById('profile-address').textContent = formData.address || 'Not provided';
+                        document.getElementById('profile-date-of-birth').textContent = formData.date_of_birth || 'Not provided';
+                        document.getElementById('profile-emergency-contact').textContent = formData.emergency_contact || 'Not provided';
+                        document.getElementById('profile-travel-preferences').textContent = formData.travel_preferences || 'Not provided';
+                        document.getElementById('profile-avatar-initial').textContent = formData.full_name.trim().charAt(0).toUpperCase();
+                        // Success notification
+                        if (window.showNotification) {
+                            showNotification('Profile updated successfully!', 'success');
+                        } else {
+                            alert('Profile updated successfully!');
+                        }
+                        bootstrap.Modal.getInstance(document.getElementById('editProfileModal')).hide();
+                    } else {
+                        if (window.showNotification) {
+                            showNotification('Failed to update profile: ' + (data.error || 'Unknown error'), 'error');
+                        } else {
+                            alert('Failed to update profile: ' + (data.error || 'Unknown error'));
+                        }
+                    }
+                })
+                .catch(error => {
+                    if (window.showNotification) {
+                        showNotification('Error updating profile. Please try again.', 'error');
+                    } else {
+                        alert('Error updating profile. Please try again.');
+                    }
+                })
+                .finally(() => {
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                });
+            });
+        }
+    });
+    </script>
+    <script>
+    window.showNotification = function(message, type = 'success') {
+      // Remove any existing notification
+      const existing = document.getElementById('custom-slide-notification');
+      if (existing) existing.remove();
+
+      // Create notification element
+      const notification = document.createElement('div');
+      notification.id = 'custom-slide-notification';
+      notification.className = `slide-notification ${type}`;
+      notification.innerHTML = `
+        <span>${message}</span>
+        <button type="button" class="close-btn" onclick="this.parentElement.remove()">×</button>
+      `;
+      document.body.appendChild(notification);
+
+      // Trigger slide-in
+      setTimeout(() => notification.classList.add('show'), 10);
+
+      // Auto remove after 3 seconds with slide-out
+      setTimeout(() => {
+        notification.classList.add('hide');
+        setTimeout(() => notification.remove(), 500);
+      }, 3000);
+    };
+    </script>
+    <!-- Add this near the end of <body>, before </body> -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 11000;">
+      <div id="mainToast" class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body" id="mainToastBody">
+            <!-- Message will go here -->
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
+    </div>
+    <script>
+    window.showNotification = function(message, type = 'success') {
+      // Set toast color based on type
+      const toast = document.getElementById('mainToast');
+      const toastBody = document.getElementById('mainToastBody');
+      toast.className = 'toast align-items-center border-0';
+      if (type === 'error') {
+        toast.classList.add('text-bg-danger');
+      } else if (type === 'success') {
+        toast.classList.add('text-bg-success');
+      } else {
+        toast.classList.add('text-bg-primary');
+      }
+      toastBody.textContent = message;
+
+      // Show the toast using Bootstrap's JS API
+      const bsToast = bootstrap.Toast.getOrCreateInstance(toast);
+      bsToast.show();
+    };
+    </script>
+    <!-- Toast with progress bar -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 11000;">
+      <div id="mainToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body" id="mainToastBody"></div>
+          <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="progress toast-progress" style="height: 3px;">
+          <div id="mainToastProgress" class="progress-bar bg-success" style="width: 100%;"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+    window.showNotification = function(message, type = 'success') {
+      const toast = document.getElementById('mainToast');
+      const toastBody = document.getElementById('mainToastBody');
+      const progressBar = document.getElementById('mainToastProgress');
+      toast.className = 'toast align-items-center border-0';
+      progressBar.className = 'progress-bar';
+      if (type === 'error') {
+        toast.classList.add('bg-danger', 'text-white');
+        progressBar.classList.add('bg-danger');
+      } else if (type === 'success') {
+        toast.classList.add('bg-success', 'text-white');
+        progressBar.classList.add('bg-success');
+      } else {
+        toast.classList.add('bg-primary', 'text-white');
+        progressBar.classList.add('bg-primary');
+      }
+      toastBody.textContent = message;
+
+      // Reset progress bar
+      progressBar.style.width = '100%';
+      progressBar.style.transition = 'none';
+
+      // Show the toast using Bootstrap's JS API
+      const bsToast = bootstrap.Toast.getOrCreateInstance(toast);
+      bsToast.show();
+
+      // Animate the progress bar
+      setTimeout(() => {
+        progressBar.style.transition = 'width 2.8s linear';
+        progressBar.style.width = '0%';
+      }, 100); // slight delay to trigger transition
+
+      // Optionally, hide the toast after 3s (Bootstrap default is 5s)
+      setTimeout(() => {
+        bsToast.hide();
+      }, 3000);
+    };
     </script>
 </body>
 </html>
