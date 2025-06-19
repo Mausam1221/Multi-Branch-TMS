@@ -1603,6 +1603,14 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
                     </div>
                     <div class="settings-description">Choose your preferred language</div>
                 </div>
+
+                <div class="settings-item">
+                  <div class="settings-header">
+                    <div class="settings-title">Change Password</div>
+                    <button type="button" class="btn btn-primary btn-sm" id="openChangePasswordModal">Change</button>
+                  </div>
+                  <div class="settings-description">Update your account password</div>
+                </div>
             </div>
         </div>
     </div>
@@ -1713,6 +1721,51 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
           </div>
           <div class="modal-footer">
             <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <form id="changePasswordForm" class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="changePasswordModalLabel">Change Password</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="current-password" class="form-label">Current Password</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="current-password" name="current_password" autocomplete="current-password">
+                <button type="button" class="btn btn-outline-secondary toggle-password" data-target="current-password" tabindex="-1">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="new-password" class="form-label">New Password</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="new-password" name="new_password" autocomplete="new-password">
+                <button type="button" class="btn btn-outline-secondary toggle-password" data-target="new-password" tabindex="-1">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="confirm-password" class="form-label">Confirm New Password</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="confirm-password" name="confirm_password" autocomplete="new-password">
+                <button type="button" class="btn btn-outline-secondary toggle-password" data-target="confirm-password" tabindex="-1">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Change Password</button>
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           </div>
         </form>
@@ -2347,6 +2400,89 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             submitBtn.textContent = 'Save Changes';
             submitBtn.disabled = false;
           }
+        });
+      }
+    });
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Toggle password visibility for all .toggle-password buttons (single handler for all)
+      document.querySelectorAll('.toggle-password').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          const targetId = btn.getAttribute('data-target');
+          const input = document.getElementById(targetId);
+          if (input) {
+            if (input.type === 'password') {
+              input.type = 'text';
+              btn.querySelector('i').classList.remove('fa-eye');
+              btn.querySelector('i').classList.add('fa-eye-slash');
+            } else {
+              input.type = 'password';
+              btn.querySelector('i').classList.remove('fa-eye-slash');
+              btn.querySelector('i').classList.add('fa-eye');
+            }
+          }
+        });
+      });
+    });
+    </script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Open Change Password modal
+      const openBtn = document.getElementById('openChangePasswordModal');
+      if (openBtn) {
+        openBtn.addEventListener('click', function() {
+          const modal = new bootstrap.Modal(document.getElementById('changePasswordModal'));
+          modal.show();
+        });
+      }
+      // Handle Change Password form submit
+      const changePasswordForm = document.getElementById('changePasswordForm');
+      if (changePasswordForm) {
+        changePasswordForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const currentPassword = document.getElementById('current-password').value;
+          const newPassword = document.getElementById('new-password').value;
+          const confirmPassword = document.getElementById('confirm-password').value;
+          // Validation
+          if (!currentPassword || !newPassword || !confirmPassword) {
+            showNotification('All password fields are required.', 'error');
+            return;
+          }
+          if (newPassword.length < 6) {
+            showNotification('New password must be at least 6 characters.', 'error');
+            return;
+          }
+          if (newPassword !== confirmPassword) {
+            showNotification('New passwords do not match.', 'error');
+            return;
+          }
+          const formData = new FormData();
+          formData.append('current_password', currentPassword);
+          formData.append('new_password', newPassword);
+          formData.append('confirm_password', confirmPassword);
+          fetch('../api/update-profile.php', {
+            method: 'POST',
+            body: formData
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              if (data.logout) {
+                showNotification('Password changed successfully! Please log in again.', 'success');
+                setTimeout(() => {
+                  window.location.href = '../index.php'; // or your login page
+                }, 1500);
+              } else {
+                showNotification('Password changed successfully!', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide();
+              }
+            } else {
+              showNotification(data.error || 'Failed to change password', 'error');
+            }
+          })
+          .catch(() => showNotification('Failed to change password', 'error'));
         });
       }
     });

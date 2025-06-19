@@ -28,8 +28,11 @@ if (!$input) {
 // Validation
 $errors = [];
 
-// Email: required, valid format
-if (empty($input['email']) || !filter_var($input['email'], FILTER_VALIDATE_EMAIL)) {
+// Only require email if not a password-only update
+if (
+    (!isset($input['new_password']) || $input['new_password'] === '') &&
+    (empty($input['email']) || !filter_var($input['email'], FILTER_VALIDATE_EMAIL))
+) {
     $errors[] = 'A valid email is required.';
 }
 // Email: unique
@@ -56,32 +59,64 @@ if (!empty($errors)) {
 }
 
 try {
-    // Update user table
-    $user_update = $db->prepare("UPDATE users SET 
-        email = ?, 
-        full_name = ?, 
-        phone = ?, 
-        address = ?, 
-        date_of_birth = ?, 
-        emergency_contact = ?, 
-        travel_preferences = ?,
-        updated_at = NOW()
-        WHERE id = ? AND role = 'customer'");
-    
-    $user_update->execute([
-        $input['email'],
-        $input['full_name'],
-        $input['phone'] ?? null,
-        $input['address'] ?? null,
-        empty($input['date_of_birth']) ? null : $input['date_of_birth'],
-        $input['emergency_contact'] ?? null,
-        $input['travel_preferences'] ?? null,
-        $customer_id
-    ]);
+    // Only update profile fields if email is present
+    if (isset($input['email']) && $input['email'] !== '') {
+        $user_update = $db->prepare("UPDATE users SET 
+            email = ?, 
+            full_name = ?, 
+            phone = ?, 
+            address = ?, 
+            date_of_birth = ?, 
+            emergency_contact = ?, 
+            travel_preferences = ?,
+            updated_at = NOW()
+            WHERE id = ? AND role = 'customer'");
+        
+        $user_update->execute([
+            $input['email'],
+            $input['full_name'],
+            $input['phone'] ?? null,
+            $input['address'] ?? null,
+            empty($input['date_of_birth']) ? null : $input['date_of_birth'],
+            $input['emergency_contact'] ?? null,
+            $input['travel_preferences'] ?? null,
+            $customer_id
+        ]);
 
-    // Update session data
-    $_SESSION['full_name'] = $input['full_name'];
-    $_SESSION['email'] = $input['email'];
+        // Update session data
+        $_SESSION['full_name'] = $input['full_name'];
+        $_SESSION['email'] = $input['email'];
+    }
+
+    if (isset($input['new_password']) && $input['new_password'] !== '') {
+        // 1. Check current password
+        $stmt = $db->prepare("SELECT password FROM users WHERE id = ?");
+        $stmt->execute([$customer_id]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$user || !password_verify($input['current_password'], $user['password'])) {
+            echo json_encode(['success' => false, 'error' => 'Current password is incorrect.']);
+            exit;
+        }
+        // 2. Check new password and confirm match
+        if ($input['new_password'] !== $input['confirm_password']) {
+            echo json_encode(['success' => false, 'error' => 'New passwords do not match.']);
+            exit;
+        }
+        // 3. Check password length
+        if (strlen($input['new_password']) < 6) {
+            echo json_encode(['success' => false, 'error' => 'New password must be at least 6 characters.']);
+            exit;
+        }
+        // 4. Update password
+        $hashed = password_hash($input['new_password'], PASSWORD_DEFAULT);
+        $update = $db->prepare("UPDATE users SET password = ? WHERE id = ?");
+        $update->execute([$hashed, $customer_id]);
+        // Destroy session and force logout
+        session_unset();
+        session_destroy();
+        echo json_encode(['success' => true, 'logout' => true, 'message' => 'Password changed. Please log in again.']);
+        exit;
+    }
 
     echo json_encode(['success' => true, 'message' => 'Profile updated successfully']);
 
