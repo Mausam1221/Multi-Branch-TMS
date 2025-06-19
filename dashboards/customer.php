@@ -1215,19 +1215,38 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
         body.dark-mode .modal-title#editProfileModalLabel {
             color: #23272f !important;
         }
+
+        .avatar-upload-overlay {
+          position: absolute;
+          bottom: 0;
+          right: 0;
+          background: rgba(0,0,0,0.6);
+          color: #fff;
+          border-radius: 50%;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: opacity 0.2s;
+          font-size: 18px;
+          border: 2px solid #fff;
+          z-index: 2;
+        }
+        #profile-avatar-upload-area:hover .avatar-upload-overlay,
+        #profile-avatar-upload-area:focus-within .avatar-upload-overlay {
+          opacity: 1;
+        }
+        #profile-avatar-upload-area {
+          cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <!-- Header -->
     <div id="location-search-bar">
       <div class="header-top">
-        <div class="location-info">
-          <i class="fas fa-map-marker-alt"></i>
-          <span class="location-text">Nepal</span>
-        </div>
-        <div class="user-avatar" id="profile-avatar-initial">
-          <?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?>
-        </div>
       </div>
       <div class="search-container">
         <i class="fas fa-search search-icon"></i>
@@ -1420,8 +1439,16 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
         <div id="profile-section" class="section">
             <!-- Profile Header -->
             <div class="profile-card">
-                <div class="profile-avatar">
-                    <?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?>
+                <div class="profile-avatar position-relative" id="profile-avatar-upload-area">
+                  <?php if (!empty($customer_details['profile_pic'])): ?>
+                    <img id="profile-avatar-img" src="/Multi-Branch%20TMS/uploads/profile_pics/<?php echo ltrim(htmlspecialchars($customer_details['profile_pic']), '/'); ?>?v=<?php echo time(); ?>" alt="Profile Picture" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                  <?php else: ?>
+                    <span id="profile-avatar-initial-text"><?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?></span>
+                  <?php endif; ?>
+                  <label for="profile-avatar-file" class="avatar-upload-overlay" style="cursor:pointer;">
+                    <i class="fas fa-camera"></i>
+                  </label>
+                  <input type="file" id="profile-avatar-file" name="profile_pic" accept="image/jpeg,image/png,image/gif" style="display:none;">
                 </div>
                 <div class="profile-name" id="profile-header-full-name"><?php echo $_SESSION['full_name']; ?></div>
                 <div class="profile-role">
@@ -2032,114 +2059,50 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             });
         }
 
-        // Edit Profile AJAX submit
+        // Edit Profile AJAX submit (with file upload)
         const editProfileForm = document.getElementById('editProfileForm');
         if (editProfileForm) {
             editProfileForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                // Validation
-                const fullName = document.getElementById('edit-full-name').value.trim();
-                const email = document.getElementById('edit-email').value.trim();
-                const phone = document.getElementById('edit-phone').value.trim();
-                const address = document.getElementById('edit-address').value.trim();
-                const dateOfBirth = document.getElementById('edit-date-of-birth').value.trim();
-                const emergencyContact = document.getElementById('edit-emergency-contact').value.trim();
-                const travelPreferences = document.getElementById('edit-travel-preferences').value.trim();
-                // Email regex
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                // Phone regex (simple, allows +, numbers, spaces, dashes)
-                const phoneRegex = /^[+\d][\d\s-]{7,}$/;
-                // Date validation
-                let today = new Date();
-                let dobDate = dateOfBirth ? new Date(dateOfBirth) : null;
-                // Validation logic
-                function showError(msg) {
-                  showNotification(msg, 'error');
-                }
-                if (!fullName || fullName.length < 2) {
-                  showError('Full Name is required and must be at least 2 characters.');
-                  return;
-                }
-                if (!email || !emailRegex.test(email)) {
-                  showError('Please enter a valid email address.');
-                  return;
-                }
-                if (phone && !phoneRegex.test(phone)) {
-                  showError('Please enter a valid phone number.');
-                  return;
-                }
-                if (emergencyContact && !phoneRegex.test(emergencyContact)) {
-                  showError('Please enter a valid emergency contact number.');
-                  return;
-                }
-                if (dateOfBirth) {
-                  if (isNaN(dobDate.getTime())) {
-                    showError('Please enter a valid date of birth.');
-                    return;
-                  }
-                  if (dobDate > today) {
-                    showError('Date of birth cannot be in the future.');
-                    return;
-                  }
-                }
-                // If all valid, proceed
-                const formData = {
-                    full_name: fullName,
-                    email: email,
-                    phone: phone,
-                    address: address,
-                    date_of_birth: dateOfBirth,
-                    emergency_contact: emergencyContact,
-                    travel_preferences: travelPreferences
-                };
-                const submitBtn = this.querySelector('button[type="submit"]');
-                const originalText = submitBtn.textContent;
-                submitBtn.textContent = 'Saving...';
-                submitBtn.disabled = true;
+                // Collect values without validation
+                const fullName = document.getElementById('edit-full-name').value;
+                const email = document.getElementById('edit-email').value;
+                const phone = document.getElementById('edit-phone').value;
+                const address = document.getElementById('edit-address').value;
+                const dateOfBirth = document.getElementById('edit-date-of-birth').value;
+                const emergencyContact = document.getElementById('edit-emergency-contact').value;
+                const travelPreferences = document.getElementById('edit-travel-preferences').value;
+                const formData = new FormData();
+                formData.append('full_name', fullName);
+                formData.append('email', email);
+                formData.append('phone', phone);
+                formData.append('address', address);
+                formData.append('date_of_birth', dateOfBirth);
+                formData.append('emergency_contact', emergencyContact);
+                formData.append('travel_preferences', travelPreferences);
                 fetch('../api/update-profile.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(formData)
+                  method: 'POST',
+                  body: formData
                 })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) {
-                        // Update profile fields on the page
-                        document.getElementById('profile-full-name').textContent = formData.full_name;
-                        document.getElementById('profile-header-full-name').textContent = formData.full_name;
-                        document.getElementById('profile-email').textContent = formData.email;
-                        document.getElementById('profile-phone').textContent = formData.phone || 'Not provided';
-                        document.getElementById('profile-address').textContent = formData.address || 'Not provided';
-                        document.getElementById('profile-date-of-birth').textContent = formData.date_of_birth || 'Not provided';
-                        document.getElementById('profile-emergency-contact').textContent = formData.emergency_contact || 'Not provided';
-                        document.getElementById('profile-travel-preferences').textContent = formData.travel_preferences || 'Not provided';
-                        document.getElementById('profile-avatar-initial').textContent = formData.full_name.trim().charAt(0).toUpperCase();
-                        // Success notification
-                        if (window.showNotification) {
-                            showNotification('Profile updated successfully!', 'success');
-                        } else {
-                            alert('Profile updated successfully!');
-                        }
-                        bootstrap.Modal.getInstance(document.getElementById('editProfileModal')).hide();
-                    } else {
-                        if (window.showNotification) {
-                            showNotification('Failed to update profile: ' + (data.error || 'Unknown error'), 'error');
-                        } else {
-                            alert('Failed to update profile: ' + (data.error || 'Unknown error'));
-                        }
-                    }
+                  if (data.success) {
+                    // Update profile fields on the page
+                    document.getElementById('profile-full-name').textContent = fullName;
+                    document.getElementById('profile-header-full-name').textContent = fullName;
+                    document.getElementById('profile-email').textContent = email;
+                    document.getElementById('profile-phone').textContent = phone || 'Not provided';
+                    document.getElementById('profile-address').textContent = address || 'Not provided';
+                    document.getElementById('profile-date-of-birth').textContent = dateOfBirth || 'Not provided';
+                    document.getElementById('profile-emergency-contact').textContent = emergencyContact || 'Not provided';
+                    document.getElementById('profile-travel-preferences').textContent = travelPreferences || 'Not provided';
+                    showNotification('Profile updated successfully!', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('editProfileModal')).hide();
+                  } else {
+                    showNotification(data.error || 'Failed to update profile', 'error');
+                  }
                 })
-                .catch(error => {
-                    if (window.showNotification) {
-                        showNotification('Error updating profile. Please try again.', 'error');
-                    } else {
-                        alert('Error updating profile. Please try again.');
-                    }
-                })
-                .finally(() => {
-                    submitBtn.textContent = originalText;
-                    submitBtn.disabled = false;
-                });
+                .catch(() => showNotification('Failed to update profile', 'error'));
             });
         }
     });
@@ -2251,6 +2214,142 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
         bsToast.hide();
       }, 3000);
     };
+    </script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Only preview image on file select
+      const fileInput = document.getElementById('edit-profile-pic');
+      const previewImg = document.getElementById('edit-profile-pic-preview');
+      if (fileInput && previewImg) {
+        fileInput.addEventListener('change', function() {
+          if (this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              previewImg.src = e.target.result;
+            };
+            reader.readAsDataURL(this.files[0]);
+          }
+        });
+      }
+
+      // Edit Profile AJAX submit (with file upload)
+      const editProfileForm = document.getElementById('editProfileForm');
+      if (editProfileForm) {
+        editProfileForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          // Collect values without validation
+          const fullName = document.getElementById('edit-full-name').value;
+          const email = document.getElementById('edit-email').value;
+          const phone = document.getElementById('edit-phone').value;
+          const address = document.getElementById('edit-address').value;
+          const dateOfBirth = document.getElementById('edit-date-of-birth').value;
+          const emergencyContact = document.getElementById('edit-emergency-contact').value;
+          const travelPreferences = document.getElementById('edit-travel-preferences').value;
+          const formData = new FormData();
+          formData.append('full_name', fullName);
+          formData.append('email', email);
+          formData.append('phone', phone);
+          formData.append('address', address);
+          formData.append('date_of_birth', dateOfBirth);
+          formData.append('emergency_contact', emergencyContact);
+          formData.append('travel_preferences', travelPreferences);
+          fetch('../api/update-profile.php', {
+            method: 'POST',
+            body: formData
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Update profile fields on the page
+              document.getElementById('profile-full-name').textContent = fullName;
+              document.getElementById('profile-header-full-name').textContent = fullName;
+              document.getElementById('profile-email').textContent = email;
+              document.getElementById('profile-phone').textContent = phone || 'Not provided';
+              document.getElementById('profile-address').textContent = address || 'Not provided';
+              document.getElementById('profile-date-of-birth').textContent = dateOfBirth || 'Not provided';
+              document.getElementById('profile-emergency-contact').textContent = emergencyContact || 'Not provided';
+              document.getElementById('profile-travel-preferences').textContent = travelPreferences || 'Not provided';
+              showNotification('Profile updated successfully!', 'success');
+              bootstrap.Modal.getInstance(document.getElementById('editProfileModal')).hide();
+            } else {
+              showNotification(data.error || 'Failed to update profile', 'error');
+            }
+          })
+          .catch(() => showNotification('Failed to update profile', 'error'));
+        });
+      }
+    });
+    </script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const avatarFileInput = document.getElementById('profile-avatar-file');
+      const avatarImg = document.getElementById('profile-avatar-img');
+      const avatarInitial = document.getElementById('profile-avatar-initial-text');
+      const avatarArea = document.getElementById('profile-avatar-upload-area');
+
+      if (avatarFileInput && avatarArea) {
+        avatarFileInput.addEventListener('change', function() {
+          if (this.files && this.files[0]) {
+            const formData = new FormData();
+            formData.append('profile_pic', this.files[0]);
+            fetch('../api/upload-profile-pic.php', {
+              method: 'POST',
+              body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success && data.url) {
+                // Always use the absolute path for the image
+                let imgUrl = '/Multi-Branch%20TMS/' + (data.url.startsWith('/') ? data.url.substring(1) : data.url);
+                imgUrl = imgUrl + '?v=' + new Date().getTime();
+                document.querySelectorAll('#profile-avatar-img').forEach(function(img) {
+                  img.src = imgUrl;
+                  img.style.display = 'block';
+                });
+                if (avatarInitial) {
+                  const img = document.createElement('img');
+                  img.id = 'profile-avatar-img';
+                  img.src = imgUrl;
+                  img.alt = 'Profile Picture';
+                  img.style.width = '100%';
+                  img.style.height = '100%';
+                  img.style.objectFit = 'cover';
+                  img.style.borderRadius = '50%';
+                  avatarInitial.replaceWith(img);
+                }
+                showNotification('Profile picture updated!', 'success');
+              } else {
+                showNotification(data.error || 'Failed to upload image', 'error');
+              }
+            })
+            .catch(() => showNotification('Failed to upload image', 'error'));
+          }
+        });
+      }
+    });
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const editProfileModal = document.getElementById('editProfileModal');
+      if (editProfileModal) {
+        editProfileModal.addEventListener('show.bs.modal', function () {
+          const submitBtn = document.querySelector('#editProfileForm button[type="submit"]');
+          if (submitBtn) {
+            submitBtn.textContent = 'Save Changes';
+            submitBtn.disabled = false;
+          }
+        });
+        editProfileModal.addEventListener('hidden.bs.modal', function () {
+          const submitBtn = document.querySelector('#editProfileForm button[type="submit"]');
+          if (submitBtn) {
+            submitBtn.textContent = 'Save Changes';
+            submitBtn.disabled = false;
+          }
+        });
+      }
+    });
     </script>
 </body>
 </html>
