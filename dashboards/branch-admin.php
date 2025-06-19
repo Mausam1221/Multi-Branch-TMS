@@ -56,11 +56,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             try {
                 // First verify current password if provided
                 if (!empty($_POST['current_password'])) {
-                    $stmt = $db->prepare("SELECT password FROM users WHERE id = ?");
+                    error_log('DEBUG: SESSION user_id: ' . (isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 'NOT SET'));
+                    $stmt = $db->prepare("SELECT password, email, full_name FROM users WHERE id = ?");
                     $stmt->execute([$_SESSION['user_id']]);
                     $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                    error_log('DEBUG: Fetched user: ' . ($user ? ($user['email'] . ' / ' . $user['full_name']) : 'NO USER'));
 
-                    if (!password_verify($_POST['current_password'], $user['password'])) {
+                    // DEBUG LOGGING
+                    error_log('DEBUG: Input password: "' . $_POST['current_password'] . '"');
+                    error_log('DEBUG: Stored password: "' . ($user ? $user['password'] : 'NO USER') . '"');
+                    error_log('DEBUG: password_verify: ' . (password_verify($_POST['current_password'], $user['password']) ? 'true' : 'false'));
+                    error_log('DEBUG: plain compare: ' . ($_POST['current_password'] === $user['password'] ? 'true' : 'false'));
+
+                    $currentPasswordOk = false;
+                    if ($user) {
+                        if (password_verify($_POST['current_password'], $user['password'])) {
+                            $currentPasswordOk = true;
+                        } elseif ($_POST['current_password'] === $user['password']) { // legacy plain text
+                            $currentPasswordOk = true;
+                        }
+                    }
+                    if (!$currentPasswordOk) {
                         echo json_encode(['success' => false, 'message' => 'Current password is incorrect']);
                         exit;
                     }
@@ -94,7 +110,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
 
                 // Update user information
                 if (!empty($_POST['new_password'])) {
-                    // Update with new password
+                    // 1. Check current password (support both hash and legacy plain text)
+                    error_log('DEBUG: SESSION user_id: ' . (isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 'NOT SET'));
+                    $stmt = $db->prepare("SELECT password, email, full_name FROM users WHERE id = ?");
+                    $stmt->execute([$_SESSION['user_id']]);
+                    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                    error_log('DEBUG: Fetched user: ' . ($user ? ($user['email'] . ' / ' . $user['full_name']) : 'NO USER'));
+
+                    $currentPasswordOk = false;
+                    if ($user) {
+                        if (password_verify($_POST['current_password'], $user['password'])) {
+                            $currentPasswordOk = true;
+                        } elseif ($_POST['current_password'] === $user['password']) { // legacy plain text
+                            $currentPasswordOk = true;
+                        }
+                    }
+                    if (!$currentPasswordOk) {
+                        echo json_encode(['success' => false, 'message' => 'Current password is incorrect.']);
+                        exit;
+                    }
+                    // 2. Check password length
+                    if (strlen($_POST['new_password']) < 6) {
+                        echo json_encode(['success' => false, 'message' => 'New password must be at least 6 characters.']);
+                        exit;
+                    }
+                    // 3. Update password
                     $hashed_password = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
                     if ($profile_pic_path) {
                         $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ?, password = ?, profile_pic = ? WHERE id = ?");
@@ -103,6 +143,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ?, password = ? WHERE id = ?");
                         $result = $stmt->execute([$_POST['full_name'], $_POST['email'], $hashed_password, $_SESSION['user_id']]);
                     }
+                    // Destroy session and force logout
+                    session_unset();
+                    session_destroy();
+                    echo json_encode(['success' => true, 'logout' => true, 'message' => 'Password changed. Please log in again.']);
+                    exit;
                 } else {
                     // Update without password change
                     if ($profile_pic_path) {
@@ -723,13 +768,27 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <input type="email" class="form-control" id="admin_email" value="<?php echo $_SESSION['email'] ?? 'admin@branch.com'; ?>">
                                             <label for="admin_email">Email</label>
                                         </div>
-                                        <div class="form-floating mb-3">
+                                        <div class="form-floating mb-3 position-relative">
                                             <input type="password" class="form-control" id="current_password" placeholder="Current Password">
                                             <label for="current_password">Current Password</label>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm position-absolute top-50 end-0 translate-middle-y me-2 toggle-password" data-target="current_password" tabindex="-1" style="z-index:2;">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
                                         </div>
-                                        <div class="form-floating mb-3">
+                                        <div class="form-floating mb-3 position-relative">
                                             <input type="password" class="form-control" id="new_password" placeholder="New Password">
                                             <label for="new_password">New Password</label>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm position-absolute top-50 end-0 translate-middle-y me-2 toggle-password" data-target="new_password" tabindex="-1" style="z-index:2;">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        <!-- Confirm New Password Field -->
+                                        <div class="form-floating mb-3 position-relative">
+                                            <input type="password" class="form-control" id="confirm_new_password" placeholder="Confirm New Password">
+                                            <label for="confirm_new_password">Confirm New Password</label>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm position-absolute top-50 end-0 translate-middle-y me-2 toggle-password" data-target="confirm_new_password" tabindex="-1" style="z-index:2;">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
                                         </div>
                                         <button type="submit" class="btn btn-primary">
                                             <i class="fas fa-save me-1"></i>Update Profile
@@ -881,6 +940,19 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
       </div>
     </div>
 
+    <!-- Toast with progress bar -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 11000;">
+      <div id="mainToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body" id="mainToastBody"></div>
+          <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="progress toast-progress" style="height: 3px;">
+          <div id="mainToastProgress" class="progress-bar bg-success" style="width: 100%;"></div>
+        </div>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Navigation
@@ -944,9 +1016,10 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        location.reload();
+                        showNotification('Package deleted successfully!', 'success');
+                        setTimeout(() => location.reload(), 1200);
                     } else {
-                        alert('Error deleting package');
+                        showNotification('Error deleting package', 'error');
                     }
                 });
             }
@@ -965,10 +1038,10 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Booking status updated successfully!');
-                    location.reload();
+                    showNotification('Booking status updated successfully!', 'success');
+                    setTimeout(() => location.reload(), 1200);
                 } else {
-                    alert('Error updating booking status');
+                    showNotification('Error updating booking status', 'error');
                 }
             });
         }
@@ -995,9 +1068,10 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    location.reload();
+                    showNotification('Package saved successfully!', 'success');
+                    setTimeout(() => location.reload(), 1200);
                 } else {
-                    alert('Error saving package');
+                    showNotification('Error saving package', 'error');
                 }
             });
         });
@@ -1021,15 +1095,15 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Branch information updated successfully!');
-                    location.reload();
+                    showNotification('Branch information updated successfully!', 'success');
+                    setTimeout(() => location.reload(), 1200);
                 } else {
-                    alert('Error updating branch information');
+                    showNotification('Error updating branch information', 'error');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error updating branch information');
+                showNotification('Error updating branch information', 'error');
             });
         });
 
@@ -1049,12 +1123,42 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
             // Save the current section to localStorage
             localStorage.setItem('lastActiveSection', 'settings');
 
+            const fullName = document.getElementById('admin_name').value;
+            const email = document.getElementById('admin_email').value;
+            const currentPassword = document.getElementById('current_password').value;
+            const newPassword = document.getElementById('new_password').value;
+            const confirmNewPassword = document.getElementById('confirm_new_password').value;
+
+            // If new password is set, require current password and confirmation
+            if (newPassword) {
+                if (!currentPassword) {
+                    showNotification('Please enter your current password to change password.', 'error');
+                    return;
+                }
+                if (newPassword.length < 6) {
+                    showNotification('New password must be at least 6 characters.', 'error');
+                    return;
+                }
+                if (newPassword !== confirmNewPassword) {
+                    showNotification('New password and confirmation do not match.', 'error');
+                    return;
+                }
+            }
+
             const formData = new FormData();
             formData.append('action', 'update_admin_profile');
-            formData.append('full_name', document.getElementById('admin_name').value);
-            formData.append('email', document.getElementById('admin_email').value);
-            formData.append('current_password', document.getElementById('current_password').value);
-            formData.append('new_password', document.getElementById('new_password').value);
+            formData.append('full_name', fullName);
+            formData.append('email', email);
+
+            if (newPassword) {
+                formData.append('current_password', currentPassword);
+                formData.append('new_password', newPassword);
+            } else {
+                // Only append current_password if filled (for legacy support)
+                if (currentPassword) {
+                    formData.append('current_password', currentPassword);
+                }
+            }
 
             // Add profile picture if selected
             const profilePicInput = document.getElementById('profile_pic');
@@ -1069,22 +1173,33 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Admin profile updated successfully!');
-                    // Update the displayed name in the header
-                    document.querySelector('.user-info span').textContent = 'Welcome, ' + document.getElementById('admin_name').value;
-                    // Update profile picture in header if uploaded
-                    if (data.profile_pic) {
-                        document.querySelector('.user-info img').src = '../' + data.profile_pic;
-                        document.getElementById('profilePreview').src = '../' + data.profile_pic;
+                    if (data.logout) {
+                        showNotification('Password changed. Please log in again.', 'success');
+                        setTimeout(() => {
+                            window.location.href = '../index.php'; // or your login page
+                        }, 1200);
+                    } else {
+                        showNotification('Admin profile updated successfully!', 'success');
+                        // Update the displayed name in the header
+                        document.querySelector('.user-info span').textContent = 'Welcome, ' + fullName;
+                        // Update profile picture in header if uploaded
+                        if (data.profile_pic) {
+                            document.querySelector('.user-info img').src = '../' + data.profile_pic;
+                            document.getElementById('profilePreview').src = '../' + data.profile_pic;
+                        }
+                        // Clear password fields for security
+                        document.getElementById('current_password').value = '';
+                        document.getElementById('new_password').value = '';
+                        document.getElementById('confirm_new_password').value = '';
+                        setTimeout(() => location.reload(), 1200);
                     }
-                    location.reload();
                 } else {
-                    alert(data.message || 'Error updating admin profile');
+                    showNotification(data.message || 'Error updating admin profile', 'error');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error updating admin profile');
+                showNotification('Error updating admin profile', 'error');
             });
         });
 
@@ -1092,7 +1207,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
         if (notificationForm) {
             notificationForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                alert('Notification settings saved successfully!');
+                showNotification('Notification settings saved successfully!', 'success');
             });
         }
 
@@ -1150,6 +1265,65 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                     new bootstrap.Modal(document.getElementById('customerDetailsModal')).show();
                 });
             });
+        });
+
+        window.showNotification = function(message, type = 'success') {
+            const toast = document.getElementById('mainToast');
+            const toastBody = document.getElementById('mainToastBody');
+            const progressBar = document.getElementById('mainToastProgress');
+            toast.className = 'toast align-items-center border-0';
+            progressBar.className = 'progress-bar';
+            if (type === 'error') {
+                toast.classList.add('bg-danger', 'text-white');
+                progressBar.classList.add('bg-danger');
+            } else if (type === 'success') {
+                toast.classList.add('bg-success', 'text-white');
+                progressBar.classList.add('bg-success');
+            } else {
+                toast.classList.add('bg-primary', 'text-white');
+                progressBar.classList.add('bg-primary');
+            }
+            toastBody.textContent = message;
+
+            // Reset progress bar
+            progressBar.style.width = '100%';
+            progressBar.style.transition = 'none';
+
+            // Show the toast using Bootstrap's JS API
+            const bsToast = bootstrap.Toast.getOrCreateInstance(toast);
+            bsToast.show();
+
+            // Animate the progress bar
+            setTimeout(() => {
+                progressBar.style.transition = 'width 2.8s linear';
+                progressBar.style.width = '0%';
+            }, 100); // slight delay to trigger transition
+
+            // Optionally, hide the toast after 3s (Bootstrap default is 5s)
+            setTimeout(() => {
+                bsToast.hide();
+            }, 3000);
+        };
+
+        // Toggle password visibility for all .toggle-password buttons (single handler for all)
+        document.addEventListener('DOMContentLoaded', function() {
+          document.querySelectorAll('.toggle-password').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              const targetId = btn.getAttribute('data-target');
+              const input = document.getElementById(targetId);
+              if (input) {
+                if (input.type === 'password') {
+                  input.type = 'text';
+                  btn.querySelector('i').classList.remove('fa-eye');
+                  btn.querySelector('i').classList.add('fa-eye-slash');
+                } else {
+                  input.type = 'password';
+                  btn.querySelector('i').classList.remove('fa-eye-slash');
+                  btn.querySelector('i').classList.add('fa-eye');
+                }
+              }
+            });
+          });
         });
     </script>
 </body>
