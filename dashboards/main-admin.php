@@ -33,19 +33,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             
         case 'add_user':
             $password_hash = password_hash($_POST['password'], PASSWORD_DEFAULT);
+            $branch_id = ($_POST['role'] === 'branch_admin') ? $_POST['branch_id'] : null;
             $stmt = $db->prepare("INSERT INTO users (username, email, password, role, branch_id, full_name, phone) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $result = $stmt->execute([$_POST['username'], $_POST['email'], $password_hash, $_POST['role'], $_POST['branch_id'], $_POST['full_name'], $_POST['phone']]);
+            $result = $stmt->execute([
+                $_POST['username'],
+                $_POST['email'],
+                $password_hash,
+                $_POST['role'],
+                $branch_id,
+                $_POST['full_name'],
+                $_POST['phone']
+            ]);
             echo json_encode(['success' => $result]);
             exit;
             
         case 'update_user':
+            $branch_id = ($_POST['role'] === 'branch_admin') ? $_POST['branch_id'] : null;
             if (!empty($_POST['password'])) {
                 $password_hash = password_hash($_POST['password'], PASSWORD_DEFAULT);
                 $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, password = ?, role = ?, branch_id = ?, full_name = ?, phone = ? WHERE id = ?");
-                $result = $stmt->execute([$_POST['username'], $_POST['email'], $password_hash, $_POST['role'], $_POST['branch_id'], $_POST['full_name'], $_POST['phone'], $_POST['id']]);
+                $result = $stmt->execute([
+                    $_POST['username'],
+                    $_POST['email'],
+                    $password_hash,
+                    $_POST['role'],
+                    $branch_id,
+                    $_POST['full_name'],
+                    $_POST['phone'],
+                    $_POST['id']
+                ]);
             } else {
                 $stmt = $db->prepare("UPDATE users SET username = ?, email = ?, role = ?, branch_id = ?, full_name = ?, phone = ? WHERE id = ?");
-                $result = $stmt->execute([$_POST['username'], $_POST['email'], $_POST['role'], $_POST['branch_id'], $_POST['full_name'], $_POST['phone'], $_POST['id']]);
+                $result = $stmt->execute([
+                    $_POST['username'],
+                    $_POST['email'],
+                    $_POST['role'],
+                    $branch_id,
+                    $_POST['full_name'],
+                    $_POST['phone'],
+                    $_POST['id']
+                ]);
             }
             echo json_encode(['success' => $result]);
             exit;
@@ -141,6 +168,17 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'branches') {
             </td>
         </tr>
     <?php endforeach;
+    exit;
+}
+
+// AJAX endpoint for latest user (for dynamic add)
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'latest_user') {
+    $latest_user_query = "SELECT u.*, b.name as branch_name FROM users u LEFT JOIN branches b ON u.branch_id = b.id ORDER BY u.created_at DESC, u.id DESC LIMIT 1";
+    $latest_user_stmt = $db->prepare($latest_user_query);
+    $latest_user_stmt->execute();
+    $user = $latest_user_stmt->fetch(PDO::FETCH_ASSOC);
+    header('Content-Type: application/json');
+    echo json_encode($user);
     exit;
 }
 
@@ -1025,7 +1063,7 @@ TravelCo Team</textarea>
                         </div>
                         <div class="form-floating">
                             <select class="form-select" id="user_branch_id" name="branch_id">
-                                <option value="">Select Branch (Optional)</option>
+                                <option value="">Select Branch</option>
                                 <?php foreach ($branches as $branch): ?>
                                 <option value="<?php echo $branch['id']; ?>"><?php echo $branch['name']; ?></option>
                                 <?php endforeach; ?>
@@ -1291,6 +1329,7 @@ TravelCo Team</textarea>
             const modal = document.getElementById('userModal');
             const form = document.getElementById('userForm');
             const title = document.getElementById('userModalTitle');
+            const branchField = document.getElementById('user_branch_id').closest('.form-floating');
             
             if (user) {
                 title.textContent = 'Edit User';
@@ -1305,9 +1344,28 @@ TravelCo Team</textarea>
             } else {
                 title.textContent = 'Add User';
                 form.reset();
+                document.getElementById('user_id').value = '';
                 document.getElementById('user_password').required = true;
             }
+            // Show/hide branch field based on role
+            handleUserRoleChange();
         }
+
+        // Show/hide branch field based on role
+        function handleUserRoleChange() {
+            const role = document.getElementById('user_role').value;
+            const branchField = document.getElementById('user_branch_id').closest('.form-floating');
+            const branchInput = document.getElementById('user_branch_id');
+            if (role === 'branch_admin') {
+                branchField.style.display = '';
+                branchInput.required = true;
+            } else {
+                branchField.style.display = 'none';
+                branchInput.value = '';
+                branchInput.required = false;
+            }
+        }
+        document.getElementById('user_role').addEventListener('change', handleUserRoleChange);
 
         function editUser(user) {
             openUserModal(user);
@@ -1334,6 +1392,102 @@ TravelCo Team</textarea>
                 });
             }
         }
+
+        // Toast for Users
+        function showUsersAlert(message, type) {
+            const toastId = 'toast-' + Date.now();
+            const toastHtml = `
+                <div id="${toastId}" class="toast align-items-center text-bg-${type} border-0 fade" role="alert" aria-live="assertive" aria-atomic="true" style="min-width: 250px; margin-bottom: 0.5rem; opacity: 0; transition: opacity 0.5s;">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            ${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            `;
+            const container = document.getElementById('toast-container');
+            container.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElem = document.getElementById(toastId);
+            setTimeout(() => {
+                toastElem.classList.add('show');
+                toastElem.style.opacity = 1;
+            }, 10);
+            setTimeout(() => {
+                toastElem.classList.remove('show');
+                toastElem.classList.add('hide');
+                toastElem.style.opacity = 0;
+                setTimeout(() => {
+                    toastElem.remove();
+                }, 500);
+            }, 2000);
+        }
+
+        // Add user row to table dynamically
+        function appendUserRow(user) {
+            const tbody = document.getElementById('users-table');
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${user.id}</td>
+                <td>${user.username}</td>
+                <td>${user.full_name}</td>
+                <td>${user.email}</td>
+                <td><span class="badge bg-${user.role == 'main_admin' ? 'danger' : (user.role == 'branch_admin' ? 'warning' : 'info')}">${user.role.replace('_', ' ').charAt(0).toUpperCase() + user.role.replace('_', ' ').slice(1)}</span></td>
+                <td>${user.branch_name || 'N/A'}</td>
+                <td><span class="badge bg-success">Active</span></td>
+                <td class="table-actions">
+                    <button class="btn btn-sm btn-outline-primary" onclick='editUser(${JSON.stringify(user)})'>
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${user.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.prepend(tr);
+        }
+
+        document.getElementById('userForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const isEdit = document.getElementById('user_id').value;
+            // Only append branch_id if role is branch_admin
+            if (document.getElementById('user_role').value !== 'branch_admin') {
+                formData.set('branch_id', '');
+            }
+            formData.append('action', isEdit ? 'update_user' : 'add_user');
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // If adding, append the new user row
+                    if (!isEdit) {
+                        // Fetch the latest user (assume backend returns the new user or fetch via AJAX)
+                        fetch('?ajax=latest_user')
+                        .then(res => res.json())
+                        .then(user => {
+                            appendUserRow(user);
+                        });
+                    } else {
+                        // For edit, reload for now (can be improved to update row in place)
+                        location.reload();
+                    }
+                    // Close modal
+                    const userModal = bootstrap.Modal.getInstance(document.getElementById('userModal'));
+                    if (userModal) userModal.hide();
+                    document.getElementById('userForm').reset();
+                    showUsersAlert('User saved successfully!', 'success');
+                } else {
+                    showUsersAlert('Error saving user', 'danger');
+                }
+            })
+            .catch(() => {
+                showUsersAlert('Error saving user', 'danger');
+            });
+        });
 
         // Package Management
         function openPackageModal(package = null) {
@@ -1382,73 +1536,6 @@ TravelCo Team</textarea>
                 });
             }
         }
-
-        // Form Submissions
-        document.getElementById('branchForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            const isEdit = document.getElementById('branch_id').value;
-            formData.append('action', isEdit ? 'update_branch' : 'add_branch');
-            fetch('', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showBranchesAlert('Branch saved successfully!', 'success');
-                    // Close modal
-                    const branchModal = bootstrap.Modal.getInstance(document.getElementById('branchModal'));
-                    if (branchModal) branchModal.hide();
-                    // Reset form
-                    document.getElementById('branchForm').reset();
-                    // Refresh table
-                    refreshBranchesTable();
-                } else {
-                    showBranchesAlert('Error saving branch', 'danger');
-                }
-            });
-        });
-
-        document.getElementById('userForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            const isEdit = document.getElementById('user_id').value;
-            formData.append('action', isEdit ? 'update_user' : 'add_user');
-            
-            fetch('', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error saving user');
-                }
-            });
-        });
-
-        document.getElementById('packageForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            const isEdit = document.getElementById('package_id').value;
-            formData.append('action', isEdit ? 'update_package' : 'add_package');
-            
-            fetch('', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error saving package');
-                }
-            });
-        });
 
         // Reports Functions
         function generateReport(type) {
