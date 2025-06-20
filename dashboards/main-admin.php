@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             exit;
             
         case 'delete_user':
-            $stmt = $db->prepare("UPDATE users SET status = 'inactive' WHERE id = ?");
+            $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
             $result = $stmt->execute([$_POST['id']]);
             echo json_encode(['success' => $result]);
             exit;
@@ -514,7 +514,7 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                     </thead>
                                     <tbody id="users-table">
                                         <?php foreach ($users as $user): ?>
-                                        <tr>
+                                        <tr data-user-id="<?php echo $user['id']; ?>">
                                             <td><?php echo $user['id']; ?></td>
                                             <td><?php echo $user['username']; ?></td>
                                             <td><?php echo $user['full_name']; ?></td>
@@ -1051,13 +1051,6 @@ TravelCo Team</textarea>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-floating">
-                                    <input type="password" class="form-control" id="user_password" name="password">
-                                    <label for="user_password">Password</label>
-                                    <small class="text-muted">Leave blank to keep current password</small>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-floating">
                                     <select class="form-select" id="user_role" name="role" required>
                                         <option value="">Select Role</option>
                                         <option value="main_admin">Main Admin</option>
@@ -1073,12 +1066,6 @@ TravelCo Team</textarea>
                                 <div class="form-floating">
                                     <input type="text" class="form-control" id="user_full_name" name="full_name" required>
                                     <label for="user_full_name">Full Name</label>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-floating">
-                                    <input type="tel" class="form-control" id="user_phone" name="phone">
-                                    <label for="user_phone">Phone</label>
                                 </div>
                             </div>
                         </div>
@@ -1197,12 +1184,12 @@ TravelCo Team</textarea>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+    document.addEventListener('DOMContentLoaded', function() {
         // Navigation
-        function showSection(section) {
+        window.showSection = function(section) {
             // Hide all sections
             document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
             document.querySelectorAll('.sidebar-menu li').forEach(li => li.classList.remove('active'));
-            
             // Show selected section
             document.getElementById(section + '-section').classList.add('active');
             if (event && event.target) {
@@ -1231,11 +1218,10 @@ TravelCo Team</textarea>
         }
 
         // Branch Management
-        function openBranchModal(branch = null) {
+        window.openBranchModal = function(branch = null) {
             const modal = document.getElementById('branchModal');
             const form = document.getElementById('branchForm');
             const title = document.getElementById('branchModalTitle');
-            
             if (branch) {
                 title.textContent = 'Edit Branch';
                 document.getElementById('branch_id').value = branch.id;
@@ -1249,16 +1235,15 @@ TravelCo Team</textarea>
             }
         }
 
-        function editBranch(branch) {
+        window.editBranch = function(branch) {
             openBranchModal(branch);
             new bootstrap.Modal(document.getElementById('branchModal')).show();
         }
 
-        function showBranchesAlert(message, type) {
-            // Create a Bootstrap toast
+        window.showBranchesAlert = function(message, type) {
             const toastId = 'toast-' + Date.now();
             const toastHtml = `
-                <div id="${toastId}" class="toast align-items-center text-bg-${type} border-0 fade" role="alert" aria-live="assertive" aria-atomic="true" style="min-width: 250px; margin-bottom: 0.5rem; opacity: 0; transition: opacity 0.5s;">
+                <div id="${toastId}" class="toast align-items-center text-bg-${type} border-0 show" role="alert" aria-live="assertive" aria-atomic="true" style="min-width: 250px; margin-bottom: 0.5rem;">
                     <div class="d-flex">
                         <div class="toast-body">
                             ${message}
@@ -1269,24 +1254,13 @@ TravelCo Team</textarea>
             `;
             const container = document.getElementById('toast-container');
             container.insertAdjacentHTML('beforeend', toastHtml);
-            const toastElem = document.getElementById(toastId);
-            // Fade in
             setTimeout(() => {
-                toastElem.classList.add('show');
-                toastElem.style.opacity = 1;
-            }, 10);
-            // Fade out after 2 seconds
-            setTimeout(() => {
-                toastElem.classList.remove('show');
-                toastElem.classList.add('hide');
-                toastElem.style.opacity = 0;
-                setTimeout(() => {
-                    toastElem.remove();
-                }, 500); // Wait for fade-out transition
+                const toastElem = document.getElementById(toastId);
+                if (toastElem) toastElem.remove();
             }, 2000);
         }
 
-        function toggleBranches() {
+        window.toggleBranches = function() {
             const btn = document.getElementById('toggle-branches-btn');
             const showAll = btn.textContent === 'Show All';
             btn.textContent = showAll ? 'Show Active Only' : 'Show All';
@@ -1294,7 +1268,6 @@ TravelCo Team</textarea>
         }
 
         function refreshBranchesTable(showAll = false) {
-            // Fetch the updated branches table via AJAX
             fetch(`?ajax=branches${showAll ? '&all=1' : ''}`)
                 .then(response => response.text())
                 .then(html => {
@@ -1302,12 +1275,11 @@ TravelCo Team</textarea>
                 });
         }
 
-        function deleteBranch(id) {
+        window.deleteBranch = function(id) {
             if (confirm('Are you sure you want to delete this branch?')) {
                 const formData = new FormData();
                 formData.append('action', 'delete_branch');
                 formData.append('id', id);
-                
                 fetch('', {
                     method: 'POST',
                     body: formData
@@ -1324,7 +1296,7 @@ TravelCo Team</textarea>
             }
         }
 
-        function restoreBranch(id) {
+        window.restoreBranch = function(id) {
             if (confirm('Restore this branch?')) {
                 const formData = new FormData();
                 formData.append('action', 'restore_branch');
@@ -1346,12 +1318,11 @@ TravelCo Team</textarea>
         }
 
         // User Management
-        function openUserModal(user = null) {
+        window.openUserModal = function(user = null) {
             const modal = document.getElementById('userModal');
             const form = document.getElementById('userForm');
             const title = document.getElementById('userModalTitle');
             const branchField = document.getElementById('user_branch_id').closest('.form-floating');
-            
             if (user) {
                 title.textContent = 'Edit User';
                 document.getElementById('user_id').value = user.id;
@@ -1359,20 +1330,30 @@ TravelCo Team</textarea>
                 document.getElementById('user_email').value = user.email;
                 document.getElementById('user_role').value = user.role;
                 document.getElementById('user_full_name').value = user.full_name;
-                document.getElementById('user_phone').value = user.phone || '';
                 document.getElementById('user_branch_id').value = user.branch_id || '';
-                document.getElementById('user_password').required = false;
+                // Hide password and phone fields in edit mode
+                const pwdRow = document.getElementById('user_password')?.closest('.col-md-6');
+                if (pwdRow) pwdRow.style.display = 'none';
+                const phoneRow = document.getElementById('user_phone')?.closest('.col-md-6');
+                if (phoneRow) phoneRow.style.display = 'none';
             } else {
                 title.textContent = 'Add User';
                 form.reset();
                 document.getElementById('user_id').value = '';
-                document.getElementById('user_password').required = true;
+                // Show password and phone fields in add mode
+                const pwdRow = document.getElementById('user_password')?.closest('.col-md-6');
+                if (pwdRow) pwdRow.style.display = '';
+                const phoneRow = document.getElementById('user_phone')?.closest('.col-md-6');
+                if (phoneRow) phoneRow.style.display = '';
             }
-            // Show/hide branch field based on role
             handleUserRoleChange();
         }
 
-        // Show/hide branch field based on role
+        window.editUser = function(user) {
+            openUserModal(user);
+            new bootstrap.Modal(document.getElementById('userModal')).show();
+        }
+
         function handleUserRoleChange() {
             const role = document.getElementById('user_role').value;
             const branchField = document.getElementById('user_branch_id').closest('.form-floating');
@@ -1388,37 +1369,10 @@ TravelCo Team</textarea>
         }
         document.getElementById('user_role').addEventListener('change', handleUserRoleChange);
 
-        function editUser(user) {
-            openUserModal(user);
-            new bootstrap.Modal(document.getElementById('userModal')).show();
-        }
-
-        function deleteUser(id) {
-            if (confirm('Are you sure you want to delete this user?')) {
-                const formData = new FormData();
-                formData.append('action', 'delete_user');
-                formData.append('id', id);
-                
-                fetch('', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        location.reload();
-                    } else {
-                        alert('Error deleting user');
-                    }
-                });
-            }
-        }
-
-        // Toast for Users
-        function showUsersAlert(message, type) {
+        window.showUsersAlert = function(message, type) {
             const toastId = 'toast-' + Date.now();
             const toastHtml = `
-                <div id="${toastId}" class="toast align-items-center text-bg-${type} border-0 fade" role="alert" aria-live="assertive" aria-atomic="true" style="min-width: 250px; margin-bottom: 0.5rem; opacity: 0; transition: opacity 0.5s;">
+                <div id="${toastId}" class="toast align-items-center text-bg-${type} border-0 show" role="alert" aria-live="assertive" aria-atomic="true" style="min-width: 250px; margin-bottom: 0.5rem;">
                     <div class="d-flex">
                         <div class="toast-body">
                             ${message}
@@ -1429,22 +1383,12 @@ TravelCo Team</textarea>
             `;
             const container = document.getElementById('toast-container');
             container.insertAdjacentHTML('beforeend', toastHtml);
-            const toastElem = document.getElementById(toastId);
             setTimeout(() => {
-                toastElem.classList.add('show');
-                toastElem.style.opacity = 1;
-            }, 10);
-            setTimeout(() => {
-                toastElem.classList.remove('show');
-                toastElem.classList.add('hide');
-                toastElem.style.opacity = 0;
-                setTimeout(() => {
-                    toastElem.remove();
-                }, 500);
+                const toastElem = document.getElementById(toastId);
+                if (toastElem) toastElem.remove();
             }, 2000);
         }
 
-        // Add user row to table dynamically
         function appendUserRow(user) {
             const tbody = document.getElementById('users-table');
             const tr = document.createElement('tr');
@@ -1472,7 +1416,6 @@ TravelCo Team</textarea>
             e.preventDefault();
             const formData = new FormData(this);
             const isEdit = document.getElementById('user_id').value;
-            // Only append branch_id if role is branch_admin
             if (document.getElementById('user_role').value !== 'branch_admin') {
                 formData.set('branch_id', '');
             }
@@ -1484,19 +1427,27 @@ TravelCo Team</textarea>
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // If adding, append the new user row
                     if (!isEdit) {
-                        // Fetch the latest user (assume backend returns the new user or fetch via AJAX)
                         fetch('?ajax=latest_user')
                         .then(res => res.json())
                         .then(user => {
                             appendUserRow(user);
                         });
                     } else {
-                        // For edit, reload for now (can be improved to update row in place)
-                        location.reload();
+                        // For edit, update the row in place
+                        fetch(`?ajax=latest_user`)
+                        .then(res => res.json())
+                        .then(user => {
+                            const row = document.querySelector(`#users-table tr[data-user-id='${user.id}']`);
+                            if (row) {
+                                row.children[1].textContent = user.username;
+                                row.children[2].textContent = user.full_name;
+                                row.children[3].textContent = user.email;
+                                row.children[4].innerHTML = `<span class="badge bg-${user.role == 'main_admin' ? 'danger' : (user.role == 'branch_admin' ? 'warning' : 'info')}">${user.role.replace('_', ' ').charAt(0).toUpperCase() + user.role.replace('_', ' ').slice(1)}</span>`;
+                                row.children[5].textContent = user.branch_name || 'N/A';
+                            }
+                        });
                     }
-                    // Close modal
                     const userModal = bootstrap.Modal.getInstance(document.getElementById('userModal'));
                     if (userModal) userModal.hide();
                     document.getElementById('userForm').reset();
@@ -1509,245 +1460,6 @@ TravelCo Team</textarea>
                 showUsersAlert('Error saving user', 'danger');
             });
         });
-
-        // Package Management
-        function openPackageModal(package = null) {
-            const modal = document.getElementById('packageModal');
-            const form = document.getElementById('packageForm');
-            const title = document.getElementById('packageModalTitle');
-            
-            if (package) {
-                title.textContent = 'Edit Package';
-                document.getElementById('package_id').value = package.id;
-                document.getElementById('package_name').value = package.name;
-                document.getElementById('package_description').value = package.description;
-                document.getElementById('package_destination').value = package.destination;
-                document.getElementById('package_duration').value = package.duration_days;
-                document.getElementById('package_price').value = package.price;
-                document.getElementById('package_branch_id').value = package.branch_id;
-                document.getElementById('package_image_url').value = package.image_url;
-            } else {
-                title.textContent = 'Add Package';
-                form.reset();
-            }
-        }
-
-        function editPackage(package) {
-            openPackageModal(package);
-            new bootstrap.Modal(document.getElementById('packageModal')).show();
-        }
-
-        function deletePackage(id) {
-            if (confirm('Are you sure you want to delete this package?')) {
-                const formData = new FormData();
-                formData.append('action', 'delete_package');
-                formData.append('id', id);
-                
-                fetch('', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        location.reload();
-                    } else {
-                        alert('Error deleting package');
-                    }
-                });
-            }
-        }
-
-        // Reports Functions
-        function generateReport(type) {
-            alert(`Generating ${type} report... This would typically download a PDF or Excel file.`);
-        }
-
-        function exportReport() {
-            alert('Exporting report... This would download the current view as Excel/PDF.');
-        }
-
-        // Settings Functions
-        document.getElementById('generalSettingsForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            alert('General settings saved successfully!');
-        });
-
-        document.getElementById('systemSettingsForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            alert('System settings saved successfully!');
-        });
-
-        document.getElementById('securitySettingsForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            alert('Security settings saved successfully!');
-        });
-
-        document.getElementById('emailTemplateForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            alert('Email template saved successfully!');
-        });
-
-        function createBackup() {
-            if(confirm('Create database backup? This may take a few minutes.')) {
-                alert('Backup created successfully! File: backup_' + new Date().toISOString().split('T')[0] + '.sql');
-            }
-        }
-
-        function scheduleBackup() {
-            alert('Auto backup scheduled for daily at 2:00 AM');
-        }
-
-        function clearCache() {
-            if(confirm('Clear system cache?')) {
-                alert('Cache cleared successfully!');
-            }
-        }
-
-        function optimizeDatabase() {
-            if(confirm('Optimize database? This may take a few minutes.')) {
-                alert('Database optimized successfully!');
-            }
-        }
-
-        function loadEmailTemplate(template) {
-            // Remove active class from all items
-            document.querySelectorAll('.list-group-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            
-            // Add active class to clicked item
-            event.target.classList.add('active');
-            
-            // Load template content based on type
-            const templates = {
-                'booking_confirmation': {
-                    subject: 'Booking Confirmation - TravelCo',
-                    body: `Dear {customer_name},
-
-Thank you for booking with TravelCo! Your booking has been confirmed.
-
-Booking Details:
-- Package: {package_name}
-- Destination: {destination}
-- Travel Date: {travel_date}
-- Number of People: {people_count}
-- Total Amount: {total_amount}
-
-We look forward to serving you!
-
-Best regards,
-TravelCo Team`
-                },
-                'booking_cancellation': {
-                    subject: 'Booking Cancellation - TravelCo',
-                    body: `Dear {customer_name},
-
-Your booking has been cancelled as requested.
-
-Cancelled Booking Details:
-- Package: {package_name}
-- Booking ID: {booking_id}
-- Refund Amount: {refund_amount}
-
-The refund will be processed within 5-7 business days.
-
-Best regards,
-TravelCo Team`
-                },
-                'welcome_email': {
-                    subject: 'Welcome to TravelCo!',
-                    body: `Dear {customer_name},
-
-Welcome to TravelCo! We're excited to have you as part of our travel community.
-
-Explore our amazing packages and start planning your next adventure.
-
-Best regards,
-TravelCo Team`
-                },
-                'password_reset': {
-                    subject: 'Password Reset - TravelCo',
-                    body: `Dear {customer_name},
-
-You have requested to reset your password.
-
-Click the link below to reset your password:
-{reset_link}
-
-This link will expire in 24 hours.
-
-Best regards,
-TravelCo Team`
-                }
-            };
-            
-            if (templates[template]) {
-                document.getElementById('email_subject').value = templates[template].subject;
-                document.getElementById('email_body').value = templates[template].body;
-            }
-        }
-
-        function previewEmail() {
-            const subject = document.getElementById('email_subject').value;
-            const body = document.getElementById('email_body').value;
-            
-            const previewWindow = window.open('', '_blank', 'width=600,height=400');
-            previewWindow.document.write(`
-                <html>
-                    <head><title>Email Preview</title></head>
-                    <body style="font-family: Arial, sans-serif; padding: 20px;">
-                        <h3>Subject: ${subject}</h3>
-                        <hr>
-                        <div style="white-space: pre-line;">${body}</div>
-                    </body>
-                </html>
-            `);
-        }
-
-        // Initialize Charts (using Chart.js - you would need to include the library)
-        document.addEventListener('DOMContentLoaded', function() {
-            // Restore last active section if available
-            const activeSection = localStorage.getItem('activeSection');
-            if (activeSection) {
-                showSection(activeSection);
-                localStorage.removeItem('activeSection');
-            }
-            // Revenue Chart (placeholder)
-            const revenueCtx = document.getElementById('revenueChart');
-            if (revenueCtx) {
-                // This would initialize a real chart with Chart.js
-                revenueCtx.style.background = '#f8f9fa';
-                revenueCtx.style.display = 'flex';
-                revenueCtx.style.alignItems = 'center';
-                revenueCtx.style.justifyContent = 'center';
-                revenueCtx.innerHTML = '<p class="text-muted">Revenue Chart (Chart.js integration needed)</p>';
-            }
-            
-            // Status Chart (placeholder)
-            const statusCtx = document.getElementById('statusChart');
-            if (statusCtx) {
-                statusCtx.style.background = '#f8f9fa';
-                statusCtx.style.display = 'flex';
-                statusCtx.style.alignItems = 'center';
-                statusCtx.style.justifyContent = 'center';
-                statusCtx.innerHTML = '<p class="text-muted">Status Chart (Chart.js integration needed)</p>';
-            }
-        });
-
-        // Booking Details Modal Function
-        function viewBooking(booking) {
-            document.getElementById('detail_booking_id').textContent = '#' + booking.id;
-            document.getElementById('detail_customer_name').textContent = booking.customer_name;
-            document.getElementById('detail_package_name').textContent = booking.package_name;
-            document.getElementById('detail_branch_name').textContent = booking.branch_name;
-            document.getElementById('detail_travel_date').textContent = booking.travel_date ? (new Date(booking.travel_date)).toLocaleDateString() : '';
-            document.getElementById('detail_people').textContent = booking.number_of_people;
-            document.getElementById('detail_amount').textContent = Number(booking.total_amount).toLocaleString();
-            document.getElementById('detail_status').innerHTML = `<span class="badge bg-${booking.status === 'confirmed' ? 'success' : (booking.status === 'pending' ? 'warning' : 'danger')}">${booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}</span>`;
-            document.getElementById('detail_created_at').textContent = booking.created_at ? (new Date(booking.created_at)).toLocaleString() : '';
-            new bootstrap.Modal(document.getElementById('bookingDetailsModal')).show();
-        }
 
         // Filtering for Users Table
         function filterUsersTable() {
@@ -1772,6 +1484,89 @@ TravelCo Team`
         document.getElementById('filterUserRole').addEventListener('change', filterUsersTable);
         document.getElementById('filterUserBranch').addEventListener('change', filterUsersTable);
         document.getElementById('filterUserSearch').addEventListener('input', filterUsersTable);
+
+        // Toggle show/hide password in user modal
+        window.toggleUserPassword = function() {
+            const pwd = document.getElementById('user_password');
+            const eye = document.getElementById('user_password_eye');
+            if (pwd.type === 'password') {
+                pwd.type = 'text';
+                eye.classList.remove('fa-eye');
+                eye.classList.add('fa-eye-slash');
+            } else {
+                pwd.type = 'password';
+                eye.classList.remove('fa-eye-slash');
+                eye.classList.add('fa-eye');
+            }
+        }
+
+        // ... (rest of your code, e.g., reports, settings, etc.)
+
+        // Restore last active section if available
+        const activeSection = localStorage.getItem('activeSection');
+        if (activeSection) {
+            showSection(activeSection);
+            localStorage.removeItem('activeSection');
+        }
+        // Revenue Chart (placeholder)
+        const revenueCtx = document.getElementById('revenueChart');
+        if (revenueCtx) {
+            revenueCtx.style.background = '#f8f9fa';
+            revenueCtx.style.display = 'flex';
+            revenueCtx.style.alignItems = 'center';
+            revenueCtx.style.justifyContent = 'center';
+            revenueCtx.innerHTML = '<p class="text-muted">Revenue Chart (Chart.js integration needed)</p>';
+        }
+        // Status Chart (placeholder)
+        const statusCtx = document.getElementById('statusChart');
+        if (statusCtx) {
+            statusCtx.style.background = '#f8f9fa';
+            statusCtx.style.display = 'flex';
+            statusCtx.style.alignItems = 'center';
+            statusCtx.style.justifyContent = 'center';
+            statusCtx.innerHTML = '<p class="text-muted">Status Chart (Chart.js integration needed)</p>';
+        }
+
+        // Helper for textEquals selector
+        (function(){
+            if (!Element.prototype.matches) return;
+            if (!Element.prototype.closest) return;
+            // Add a custom selector for textEquals
+            document.querySelectorAll = (function(qsa) {
+                return function(selectors) {
+                    if (selectors.includes(':textEquals')) {
+                        const [sel, text] = selectors.match(/(.*):textEquals\('(.+)'\)/).slice(1,3);
+                        return Array.from(qsa.call(document, sel)).filter(el => el.textContent.trim() === text);
+                    }
+                    return qsa.call(document, selectors);
+                };
+            })(document.querySelectorAll);
+        })();
+    });
+
+    // Make deleteUser globally available
+    window.deleteUser = function(id) {
+        if (confirm('Are you sure you want to delete this user?')) {
+            const formData = new FormData();
+            formData.append('action', 'delete_user');
+            formData.append('id', id);
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Remove the user row from the table using data-user-id
+                    const row = document.querySelector(`#users-table tr[data-user-id='${id}']`);
+                    if (row) row.remove();
+                    if (typeof showUsersAlert === 'function') showUsersAlert('User deleted successfully!', 'success');
+                } else {
+                    if (typeof showUsersAlert === 'function') showUsersAlert('Error deleting user', 'danger');
+                }
+            });
+        }
+    }
     </script>
 </body>
 </html>
