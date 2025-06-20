@@ -56,17 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             try {
                 // First verify current password if provided
                 if (!empty($_POST['current_password'])) {
-                    error_log('DEBUG: SESSION user_id: ' . (isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 'NOT SET'));
                     $stmt = $db->prepare("SELECT password, email, full_name FROM users WHERE id = ?");
                     $stmt->execute([$_SESSION['user_id']]);
                     $user = $stmt->fetch(PDO::FETCH_ASSOC);
-                    error_log('DEBUG: Fetched user: ' . ($user ? ($user['email'] . ' / ' . $user['full_name']) : 'NO USER'));
-
-                    // DEBUG LOGGING
-                    error_log('DEBUG: Input password: "' . $_POST['current_password'] . '"');
-                    error_log('DEBUG: Stored password: "' . ($user ? $user['password'] : 'NO USER') . '"');
-                    error_log('DEBUG: password_verify: ' . (password_verify($_POST['current_password'], $user['password']) ? 'true' : 'false'));
-                    error_log('DEBUG: plain compare: ' . ($_POST['current_password'] === $user['password'] ? 'true' : 'false'));
 
                     $currentPasswordOk = false;
                     if ($user) {
@@ -111,11 +103,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 // Update user information
                 if (!empty($_POST['new_password'])) {
                     // 1. Check current password (support both hash and legacy plain text)
-                    error_log('DEBUG: SESSION user_id: ' . (isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 'NOT SET'));
                     $stmt = $db->prepare("SELECT password, email, full_name FROM users WHERE id = ?");
                     $stmt->execute([$_SESSION['user_id']]);
                     $user = $stmt->fetch(PDO::FETCH_ASSOC);
-                    error_log('DEBUG: Fetched user: ' . ($user ? ($user['email'] . ' / ' . $user['full_name']) : 'NO USER'));
 
                     $currentPasswordOk = false;
                     if ($user) {
@@ -171,9 +161,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 echo json_encode(['success' => $result, 'profile_pic' => $profile_pic_path]);
 
             } catch (Exception $e) {
-                error_log("Profile update error: " . $e->getMessage());
                 echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
             }
+            exit;
+        case 'toggle_branch_status':
+            $new_status = ($_POST['status'] === 'active') ? 'active' : 'inactive';
+            $stmt = $db->prepare("UPDATE branches SET status = ? WHERE id = ?");
+            $result = $stmt->execute([$new_status, $branch_id]);
+            echo json_encode(['success' => $result, 'new_status' => $new_status]);
             exit;
     }
 }
@@ -251,6 +246,28 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
         .form-floating {
             margin-bottom: 1rem;
         }
+        /* Simple Switch Styles */
+        .form-switch .form-check-input {
+            width: 2.5em;
+            height: 1.2em;
+            background-color: #e9ecef;
+            border: 1px solid #ccc;
+            transition: background 0.2s, border-color 0.2s;
+            box-shadow: none;
+        }
+        .form-switch .form-check-input:checked {
+            background-color: #28d745;
+            border-color: #28d745;
+        }
+        .form-switch .form-check-label {
+            margin-left: 0.75em;
+            font-weight: bold;
+            color: #28d745;
+            transition: color 0.2s;
+        }
+        .form-switch .form-check-input:not(:checked) + .form-check-label {
+            color: #dc3545;
+        }
     </style>
 </head>
 <body>
@@ -315,7 +332,9 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <p class="text-muted mb-0"><i class="fas fa-envelope me-2"></i><?php echo $branch_info['contact_email']; ?></p>
                                         </div>
                                         <div class="col-md-4 text-end">
-                                            <span class="badge bg-success fs-6">Active Branch</span>
+                                            <span class="badge fs-6 bg-<?php echo ($branch_info['status'] ?? 'active') === 'active' ? 'success' : 'danger'; ?>">
+                                                <?php echo ucfirst($branch_info['status'] ?? 'active'); ?> Branch
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -708,8 +727,15 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                         <!-- Branch Information -->
                         <div class="col-md-6">
                             <div class="card mb-4">
-                                <div class="card-header">
+                                <div class="card-header d-flex justify-content-between align-items-center">
                                     <h5><i class="fas fa-building me-2"></i>Branch Information</h5>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="branchStatusSwitch"
+                                            <?php echo ($branch_info['status'] ?? 'active') === 'active' ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="branchStatusSwitch" id="branchStatusSwitchLabel">
+                                            <?php echo ucfirst($branch_info['status'] ?? 'active'); ?>
+                                        </label>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <form id="branchInfoForm">
@@ -1106,6 +1132,36 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                 showNotification('Error updating branch information', 'error');
             });
         });
+
+        // Branch Status Toggle
+        var branchStatusSwitch = document.getElementById('branchStatusSwitch');
+        if (branchStatusSwitch) {
+            branchStatusSwitch.addEventListener('change', function() {
+                const newStatus = this.checked ? 'active' : 'inactive';
+                const formData = new FormData();
+                formData.append('action', 'toggle_branch_status');
+                formData.append('status', newStatus);
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update label
+                        const label = document.getElementById('branchStatusSwitchLabel');
+                        label.textContent = data.new_status.charAt(0).toUpperCase() + data.new_status.slice(1);
+                        showNotification('Branch status updated to ' + data.new_status + '!', 'success');
+                    } else {
+                        showNotification('Error updating branch status', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showNotification('Error updating branch status', 'error');
+                });
+            });
+        }
 
         // Restore last active section after reload
         window.addEventListener('DOMContentLoaded', function() {

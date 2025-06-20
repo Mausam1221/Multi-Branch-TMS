@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             exit;
             
         case 'delete_branch':
-            $stmt = $db->prepare("UPDATE branches SET status = 'inactive' WHERE id = ?");
+            $stmt = $db->prepare("DELETE FROM branches WHERE id = ?");
             $result = $stmt->execute([$_POST['id']]);
             echo json_encode(['success' => $result]);
             exit;
@@ -73,6 +73,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             $result = $stmt->execute([$_POST['id']]);
             echo json_encode(['success' => $result]);
             exit;
+
+        case 'restore_branch':
+            $stmt = $db->prepare("UPDATE branches SET status = 'active' WHERE id = ?");
+            $result = $stmt->execute([$_POST['id']]);
+            echo json_encode(['success' => $result]);
+            exit;
     }
 }
 
@@ -104,6 +110,39 @@ $branches_query = "SELECT * FROM branches WHERE status = 'active' ORDER BY name"
 $branches_stmt = $db->prepare($branches_query);
 $branches_stmt->execute();
 $branches = $branches_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// AJAX endpoint for branches table refresh
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'branches') {
+    $showAll = isset($_GET['all']) && $_GET['all'] == '1';
+    $branches_query = $showAll ? "SELECT * FROM branches ORDER BY name" : "SELECT * FROM branches WHERE status = 'active' ORDER BY name";
+    $branches_stmt = $db->prepare($branches_query);
+    $branches_stmt->execute();
+    $branches = $branches_stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($branches as $branch): ?>
+        <tr data-branch-id="<?php echo $branch['id']; ?>">
+            <td><?php echo $branch['id']; ?></td>
+            <td><?php echo $branch['name']; ?></td>
+            <td><?php echo $branch['location']; ?></td>
+            <td><?php echo $branch['contact_email']; ?></td>
+            <td><?php echo $branch['contact_phone']; ?></td>
+            <td><span class="badge bg-<?php echo $branch['status'] === 'active' ? 'success' : 'secondary'; ?>"><?php echo ucfirst($branch['status']); ?></span></td>
+            <td class="table-actions">
+                <button class="btn btn-sm btn-outline-primary" onclick="editBranch(<?php echo htmlspecialchars(json_encode($branch)); ?>)">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteBranch(<?php echo $branch['id']; ?>)">
+                    <i class="fas fa-trash"></i>
+                </button>
+                <?php if ($branch['status'] !== 'active'): ?>
+                <button class="btn btn-sm btn-outline-success" onclick="restoreBranch(<?php echo $branch['id']; ?>)">
+                    <i class="fas fa-undo"></i>
+                </button>
+                <?php endif; ?>
+            </td>
+        </tr>
+    <?php endforeach;
+    exit;
+}
 
 // Get all users
 $users_query = "SELECT u.*, b.name as branch_name FROM users u 
@@ -157,6 +196,8 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
     <div class="dashboard-wrapper">
+        <!-- Toast Container for Alerts -->
+        <div id="toast-container" style="position: fixed; top: 1rem; right: 1rem; z-index: 1080;"></div>
         <!-- Sidebar -->
         <nav class="sidebar">
             <div class="sidebar-header">
@@ -290,9 +331,11 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                                     <th>Customer</th>
                                                     <th>Package</th>
                                                     <th>Branch</th>
+                                                    <th>Travel Date</th>
+                                                    <th>People</th>
                                                     <th>Amount</th>
                                                     <th>Status</th>
-                                                    <th>Date</th>
+                                                    <th>Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -302,13 +345,19 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                                     <td><?php echo $booking['customer_name']; ?></td>
                                                     <td><?php echo $booking['package_name']; ?></td>
                                                     <td><?php echo $booking['branch_name']; ?></td>
+                                                    <td><?php echo date('M d, Y', strtotime($booking['travel_date'])); ?></td>
+                                                    <td><?php echo $booking['number_of_people']; ?></td>
                                                     <td>NPR <?php echo number_format($booking['total_amount']); ?></td>
                                                     <td>
                                                         <span class="badge bg-<?php echo $booking['status'] == 'confirmed' ? 'success' : ($booking['status'] == 'pending' ? 'warning' : 'danger'); ?>">
                                                             <?php echo ucfirst($booking['status']); ?>
                                                         </span>
                                                     </td>
-                                                    <td><?php echo date('M d, Y', strtotime($booking['created_at'])); ?></td>
+                                                    <td>
+                                                        <button class="btn btn-sm btn-outline-info" onclick='viewBooking(<?php echo json_encode($booking); ?>)'>
+                                                            <i class="fas fa-eye"></i>
+                                                        </button>
+                                                    </td>
                                                 </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
@@ -324,11 +373,15 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div id="branches-section" class="content-section">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h3><i class="fas fa-code-branch me-2"></i>Branches Management</h3>
-                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#branchModal" onclick="openBranchModal()">
-                            <i class="fas fa-plus me-1"></i>Add Branch
-                        </button>
+                        <div>
+                            <button class="btn btn-secondary btn-sm me-2" id="toggle-branches-btn" onclick="toggleBranches()">Show All</button>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#branchModal" onclick="openBranchModal()">
+                                <i class="fas fa-plus me-1"></i>Add Branch
+                            </button>
+                        </div>
                     </div>
-                    
+                    <!-- Success/Error Alert Placeholder -->
+                    <div id="branches-alert"></div>
                     <div class="card">
                         <div class="card-body">
                             <div class="table-responsive">
@@ -346,13 +399,13 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                     </thead>
                                     <tbody id="branches-table">
                                         <?php foreach ($branches as $branch): ?>
-                                        <tr>
+                                        <tr data-branch-id="<?php echo $branch['id']; ?>">
                                             <td><?php echo $branch['id']; ?></td>
                                             <td><?php echo $branch['name']; ?></td>
                                             <td><?php echo $branch['location']; ?></td>
                                             <td><?php echo $branch['contact_email']; ?></td>
                                             <td><?php echo $branch['contact_phone']; ?></td>
-                                            <td><span class="badge bg-success">Active</span></td>
+                                            <td><span class="badge bg-<?php echo $branch['status'] === 'active' ? 'success' : 'secondary'; ?>"><?php echo ucfirst($branch['status']); ?></span></td>
                                             <td class="table-actions">
                                                 <button class="btn btn-sm btn-outline-primary" onclick="editBranch(<?php echo htmlspecialchars(json_encode($branch)); ?>)">
                                                     <i class="fas fa-edit"></i>
@@ -360,6 +413,11 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                                 <button class="btn btn-sm btn-outline-danger" onclick="deleteBranch(<?php echo $branch['id']; ?>)">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
+                                                <?php if ($branch['status'] !== 'active'): ?>
+                                                <button class="btn btn-sm btn-outline-success" onclick="restoreBranch(<?php echo $branch['id']; ?>)">
+                                                    <i class="fas fa-undo"></i>
+                                                </button>
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                         <?php endforeach; ?>
@@ -504,7 +562,7 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                                 </span>
                                             </td>
                                             <td>
-                                                <button class="btn btn-sm btn-outline-info">
+                                                <button class="btn btn-sm btn-outline-info" onclick='viewBooking(<?php echo json_encode($booking); ?>)'>
                                                     <i class="fas fa-eye"></i>
                                                 </button>
                                             </td>
@@ -1050,6 +1108,34 @@ TravelCo Team</textarea>
         </div>
     </div>
 
+    <!-- Booking Details Modal -->
+    <div class="modal fade" id="bookingDetailsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Booking Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="list-group">
+                        <li class="list-group-item"><strong>Booking ID:</strong> <span id="detail_booking_id"></span></li>
+                        <li class="list-group-item"><strong>Customer:</strong> <span id="detail_customer_name"></span></li>
+                        <li class="list-group-item"><strong>Package:</strong> <span id="detail_package_name"></span></li>
+                        <li class="list-group-item"><strong>Branch:</strong> <span id="detail_branch_name"></span></li>
+                        <li class="list-group-item"><strong>Travel Date:</strong> <span id="detail_travel_date"></span></li>
+                        <li class="list-group-item"><strong>People:</strong> <span id="detail_people"></span></li>
+                        <li class="list-group-item"><strong>Amount:</strong> NPR <span id="detail_amount"></span></li>
+                        <li class="list-group-item"><strong>Status:</strong> <span id="detail_status"></span></li>
+                        <li class="list-group-item"><strong>Created At:</strong> <span id="detail_created_at"></span></li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Navigation
@@ -1060,8 +1146,16 @@ TravelCo Team</textarea>
             
             // Show selected section
             document.getElementById(section + '-section').classList.add('active');
-            event.target.closest('li').classList.add('active');
-            
+            if (event && event.target) {
+                event.target.closest('li').classList.add('active');
+            } else {
+                // If triggered programmatically, highlight the correct sidebar item
+                document.querySelectorAll('.sidebar-menu li').forEach(li => {
+                    if (li.querySelector('a') && li.querySelector('a').getAttribute('onclick') && li.querySelector('a').getAttribute('onclick').includes(section)) {
+                        li.classList.add('active');
+                    }
+                });
+            }
             // Update page title
             const titles = {
                 'dashboard': 'Main Admin Dashboard',
@@ -1073,6 +1167,8 @@ TravelCo Team</textarea>
                 'settings': 'System Settings'
             };
             document.getElementById('page-title').textContent = titles[section] || 'Main Admin Dashboard';
+            // Store active section
+            localStorage.setItem('activeSection', section);
         }
 
         // Branch Management
@@ -1099,6 +1195,54 @@ TravelCo Team</textarea>
             new bootstrap.Modal(document.getElementById('branchModal')).show();
         }
 
+        function showBranchesAlert(message, type) {
+            // Create a Bootstrap toast
+            const toastId = 'toast-' + Date.now();
+            const toastHtml = `
+                <div id="${toastId}" class="toast align-items-center text-bg-${type} border-0 fade" role="alert" aria-live="assertive" aria-atomic="true" style="min-width: 250px; margin-bottom: 0.5rem; opacity: 0; transition: opacity 0.5s;">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            ${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            `;
+            const container = document.getElementById('toast-container');
+            container.insertAdjacentHTML('beforeend', toastHtml);
+            const toastElem = document.getElementById(toastId);
+            // Fade in
+            setTimeout(() => {
+                toastElem.classList.add('show');
+                toastElem.style.opacity = 1;
+            }, 10);
+            // Fade out after 2 seconds
+            setTimeout(() => {
+                toastElem.classList.remove('show');
+                toastElem.classList.add('hide');
+                toastElem.style.opacity = 0;
+                setTimeout(() => {
+                    toastElem.remove();
+                }, 500); // Wait for fade-out transition
+            }, 2000);
+        }
+
+        function toggleBranches() {
+            const btn = document.getElementById('toggle-branches-btn');
+            const showAll = btn.textContent === 'Show All';
+            btn.textContent = showAll ? 'Show Active Only' : 'Show All';
+            refreshBranchesTable(showAll);
+        }
+
+        function refreshBranchesTable(showAll = false) {
+            // Fetch the updated branches table via AJAX
+            fetch(`?ajax=branches${showAll ? '&all=1' : ''}`)
+                .then(response => response.text())
+                .then(html => {
+                    document.getElementById('branches-table').innerHTML = html;
+                });
+        }
+
         function deleteBranch(id) {
             if (confirm('Are you sure you want to delete this branch?')) {
                 const formData = new FormData();
@@ -1112,9 +1256,31 @@ TravelCo Team</textarea>
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        location.reload();
+                        showBranchesAlert('Branch deleted successfully!', 'success');
+                        refreshBranchesTable(document.getElementById('toggle-branches-btn').textContent === 'Show Active Only');
                     } else {
-                        alert('Error deleting branch');
+                        showBranchesAlert('Error deleting branch', 'danger');
+                    }
+                });
+            }
+        }
+
+        function restoreBranch(id) {
+            if (confirm('Restore this branch?')) {
+                const formData = new FormData();
+                formData.append('action', 'restore_branch');
+                formData.append('id', id);
+                fetch('', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showBranchesAlert('Branch restored successfully!', 'success');
+                        refreshBranchesTable(document.getElementById('toggle-branches-btn').textContent === 'Show Active Only');
+                    } else {
+                        showBranchesAlert('Error restoring branch', 'danger');
                     }
                 });
             }
@@ -1223,7 +1389,6 @@ TravelCo Team</textarea>
             const formData = new FormData(this);
             const isEdit = document.getElementById('branch_id').value;
             formData.append('action', isEdit ? 'update_branch' : 'add_branch');
-            
             fetch('', {
                 method: 'POST',
                 body: formData
@@ -1231,9 +1396,16 @@ TravelCo Team</textarea>
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    location.reload();
+                    showBranchesAlert('Branch saved successfully!', 'success');
+                    // Close modal
+                    const branchModal = bootstrap.Modal.getInstance(document.getElementById('branchModal'));
+                    if (branchModal) branchModal.hide();
+                    // Reset form
+                    document.getElementById('branchForm').reset();
+                    // Refresh table
+                    refreshBranchesTable();
                 } else {
-                    alert('Error saving branch');
+                    showBranchesAlert('Error saving branch', 'danger');
                 }
             });
         });
@@ -1427,6 +1599,12 @@ TravelCo Team`
 
         // Initialize Charts (using Chart.js - you would need to include the library)
         document.addEventListener('DOMContentLoaded', function() {
+            // Restore last active section if available
+            const activeSection = localStorage.getItem('activeSection');
+            if (activeSection) {
+                showSection(activeSection);
+                localStorage.removeItem('activeSection');
+            }
             // Revenue Chart (placeholder)
             const revenueCtx = document.getElementById('revenueChart');
             if (revenueCtx) {
@@ -1448,6 +1626,20 @@ TravelCo Team`
                 statusCtx.innerHTML = '<p class="text-muted">Status Chart (Chart.js integration needed)</p>';
             }
         });
+
+        // Booking Details Modal Function
+        function viewBooking(booking) {
+            document.getElementById('detail_booking_id').textContent = '#' + booking.id;
+            document.getElementById('detail_customer_name').textContent = booking.customer_name;
+            document.getElementById('detail_package_name').textContent = booking.package_name;
+            document.getElementById('detail_branch_name').textContent = booking.branch_name;
+            document.getElementById('detail_travel_date').textContent = booking.travel_date ? (new Date(booking.travel_date)).toLocaleDateString() : '';
+            document.getElementById('detail_people').textContent = booking.number_of_people;
+            document.getElementById('detail_amount').textContent = Number(booking.total_amount).toLocaleString();
+            document.getElementById('detail_status').innerHTML = `<span class="badge bg-${booking.status === 'confirmed' ? 'success' : (booking.status === 'pending' ? 'warning' : 'danger')}">${booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}</span>`;
+            document.getElementById('detail_created_at').textContent = booking.created_at ? (new Date(booking.created_at)).toLocaleString() : '';
+            new bootstrap.Modal(document.getElementById('bookingDetailsModal')).show();
+        }
     </script>
 </body>
 </html>
