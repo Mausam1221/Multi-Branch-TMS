@@ -474,7 +474,28 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                             <i class="fas fa-plus me-1"></i>Add User
                         </button>
                     </div>
-                    
+                    <!-- Filter Bar -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <select class="form-select" id="filterUserRole">
+                                <option value="">All Roles</option>
+                                <option value="main_admin">Main Admin</option>
+                                <option value="branch_admin">Branch Admin</option>
+                                <option value="customer">Customer</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="filterUserBranch">
+                                <option value="">All Branches</option>
+                                <?php foreach ($branches as $branch): ?>
+                                <option value="<?php echo $branch['name']; ?>"><?php echo $branch['name']; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="filterUserSearch" placeholder="Search by username, full name, or email...">
+                        </div>
+                    </div>
                     <div class="card">
                         <div class="card-body">
                             <div class="table-responsive">
@@ -1727,6 +1748,30 @@ TravelCo Team`
             document.getElementById('detail_created_at').textContent = booking.created_at ? (new Date(booking.created_at)).toLocaleString() : '';
             new bootstrap.Modal(document.getElementById('bookingDetailsModal')).show();
         }
+
+        // Filtering for Users Table
+        function filterUsersTable() {
+            const role = document.getElementById('filterUserRole').value.toLowerCase();
+            const branch = document.getElementById('filterUserBranch').value.toLowerCase();
+            const search = document.getElementById('filterUserSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#users-table tr');
+            rows.forEach(row => {
+                const tds = row.querySelectorAll('td');
+                const userRole = tds[4].textContent.trim().toLowerCase();
+                const userBranch = tds[5].textContent.trim().toLowerCase();
+                const userName = tds[1].textContent.trim().toLowerCase();
+                const fullName = tds[2].textContent.trim().toLowerCase();
+                const email = tds[3].textContent.trim().toLowerCase();
+                let show = true;
+                if (role && userRole !== role.replace('_', ' ')) show = false;
+                if (branch && userBranch !== branch) show = false;
+                if (search && !(userName.includes(search) || fullName.includes(search) || email.includes(search))) show = false;
+                row.style.display = show ? '' : 'none';
+            });
+        }
+        document.getElementById('filterUserRole').addEventListener('change', filterUsersTable);
+        document.getElementById('filterUserBranch').addEventListener('change', filterUsersTable);
+        document.getElementById('filterUserSearch').addEventListener('input', filterUsersTable);
     </script>
 </body>
 </html>
