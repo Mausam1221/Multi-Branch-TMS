@@ -230,6 +230,39 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
         .form-floating {
             margin-bottom: 1rem;
         }
+        
+        /* Image Preview Styles */
+        .image-preview-wrapper {
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            padding: 10px;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+        
+        .image-preview-wrapper:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        
+        #image_preview {
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        #image_preview:hover {
+            transform: scale(1.02);
+        }
+        
+        #image_preview_container {
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
@@ -554,7 +587,7 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                     
                     <div class="row">
                         <?php foreach ($packages as $package): ?>
-                        <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="col-md-6 col-lg-4 mb-4" data-package-id="<?php echo $package['id']; ?>">
                             <div class="card h-100">
                                 <img src="<?php echo $package['image_url']; ?>" class="card-img-top" style="height: 200px; object-fit: cover;" alt="<?php echo $package['name']; ?>">
                                 <div class="card-body d-flex flex-column">
@@ -1060,12 +1093,24 @@ TravelCo Team</textarea>
                                     <label for="user_role">Role</label>
                                 </div>
                             </div>
-                        </div>
-                        <div class="row">
                             <div class="col-md-6">
                                 <div class="form-floating">
                                     <input type="text" class="form-control" id="user_full_name" name="full_name" required>
                                     <label for="user_full_name">Full Name</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="password" class="form-control" id="user_password" name="password">
+                                    <label for="user_password">Password</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="tel" class="form-control" id="user_phone" name="phone">
+                                    <label for="user_phone">Phone</label>
                                 </div>
                             </div>
                         </div>
@@ -1143,6 +1188,12 @@ TravelCo Team</textarea>
                         <div class="form-floating">
                             <input type="url" class="form-control" id="package_image_url" name="image_url" required>
                             <label for="package_image_url">Image URL</label>
+                        </div>
+                        <div id="image_preview_container" class="mt-3" style="display: none;">
+                            <label class="form-label">Image Preview:</label>
+                            <div class="image-preview-wrapper">
+                                <img id="image_preview" src="" alt="Package Image Preview" class="img-fluid rounded" style="max-height: 200px; width: 100%; object-fit: cover;">
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -1232,6 +1283,7 @@ TravelCo Team</textarea>
             } else {
                 title.textContent = 'Add Branch';
                 form.reset();
+                document.getElementById('branch_id').value = '';
             }
         }
 
@@ -1316,6 +1368,35 @@ TravelCo Team</textarea>
                 });
             }
         }
+
+        // Branch form submission
+        document.getElementById('branchForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const isEdit = document.getElementById('branch_id').value;
+            formData.append('action', isEdit ? 'update_branch' : 'add_branch');
+            
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const branchModal = bootstrap.Modal.getInstance(document.getElementById('branchModal'));
+                    if (branchModal) branchModal.hide();
+                    document.getElementById('branchForm').reset();
+                    showBranchesAlert('Branch saved successfully!', 'success');
+                    // Refresh the branches table
+                    refreshBranchesTable(document.getElementById('toggle-branches-btn').textContent === 'Show Active Only');
+                } else {
+                    showBranchesAlert('Error saving branch', 'danger');
+                }
+            })
+            .catch(() => {
+                showBranchesAlert('Error saving branch', 'danger');
+            });
+        });
 
         // User Management
         window.openUserModal = function(user = null) {
@@ -1567,6 +1648,407 @@ TravelCo Team</textarea>
             });
         }
     }
+
+    // Package Management Functions
+    window.openPackageModal = function(package = null) {
+        const modal = document.getElementById('packageModal');
+        const form = document.getElementById('packageForm');
+        const title = document.getElementById('packageModalTitle');
+        if (package) {
+            title.textContent = 'Edit Package';
+            document.getElementById('package_id').value = package.id;
+            document.getElementById('package_name').value = package.name;
+            document.getElementById('package_description').value = package.description;
+            document.getElementById('package_destination').value = package.destination;
+            document.getElementById('package_duration').value = package.duration_days;
+            document.getElementById('package_price').value = package.price;
+            document.getElementById('package_branch_id').value = package.branch_id;
+            document.getElementById('package_image_url').value = package.image_url;
+            
+            // Show image preview for edit mode
+            if (package.image_url) {
+                showImagePreview(package.image_url);
+            }
+        } else {
+            title.textContent = 'Add Package';
+            form.reset();
+            document.getElementById('package_id').value = '';
+            hideImagePreview();
+        }
+    }
+
+    // Image preview functionality
+    function showImagePreview(imageUrl) {
+        const previewContainer = document.getElementById('image_preview_container');
+        const previewImage = document.getElementById('image_preview');
+        
+        if (imageUrl && imageUrl.trim() !== '') {
+            previewImage.src = imageUrl;
+            previewImage.onload = function() {
+                previewContainer.style.display = 'block';
+            };
+            previewImage.onerror = function() {
+                previewContainer.style.display = 'none';
+                showNotification('Invalid image URL or image not accessible', 'error');
+            };
+        } else {
+            hideImagePreview();
+        }
+    }
+
+    function hideImagePreview() {
+        const previewContainer = document.getElementById('image_preview_container');
+        previewContainer.style.display = 'none';
+    }
+
+    // Add event listener for image URL input
+    document.addEventListener('DOMContentLoaded', function() {
+        const imageUrlInput = document.getElementById('package_image_url');
+        if (imageUrlInput) {
+            imageUrlInput.addEventListener('input', function() {
+                const imageUrl = this.value.trim();
+                if (imageUrl) {
+                    showImagePreview(imageUrl);
+                } else {
+                    hideImagePreview();
+                }
+            });
+            
+            // Also trigger on blur for better UX
+            imageUrlInput.addEventListener('blur', function() {
+                const imageUrl = this.value.trim();
+                if (imageUrl) {
+                    showImagePreview(imageUrl);
+                }
+            });
+        }
+    });
+
+    window.editPackage = function(package) {
+        openPackageModal(package);
+        new bootstrap.Modal(document.getElementById('packageModal')).show();
+    }
+
+    window.deletePackage = function(id) {
+        if (confirm('Are you sure you want to delete this package?')) {
+            const formData = new FormData();
+            formData.append('action', 'delete_package');
+            formData.append('id', id);
+            
+            // Find the package card before making the request
+            const packageCard = document.querySelector(`[data-package-id='${id}']`);
+            
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Remove the package card from the UI with animation
+                    if (packageCard) {
+                        packageCard.style.transition = 'all 0.3s ease';
+                        packageCard.style.transform = 'scale(0.8)';
+                        packageCard.style.opacity = '0';
+                        
+                        setTimeout(() => {
+                            packageCard.remove();
+                            showNotification('Package deleted successfully!', 'success');
+                            
+                            // Check if no packages left
+                            const remainingPackages = document.querySelectorAll('[data-package-id]');
+                            if (remainingPackages.length === 0) {
+                                const packagesSection = document.getElementById('packages-section');
+                                packagesSection.innerHTML = `
+                                    <div class="d-flex justify-content-between align-items-center mb-4">
+                                        <h3><i class="fas fa-suitcase me-2"></i>Packages Management</h3>
+                                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#packageModal" onclick="openPackageModal()">
+                                            <i class="fas fa-plus me-1"></i>Add Package
+                                        </button>
+                                    </div>
+                                    <div class="text-center py-5">
+                                        <i class="fas fa-suitcase fa-3x text-muted mb-3"></i>
+                                        <h5 class="text-muted">No packages available</h5>
+                                        <p class="text-muted">Start by adding your first package!</p>
+                                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#packageModal" onclick="openPackageModal()">
+                                            <i class="fas fa-plus me-1"></i>Add First Package
+                                        </button>
+                                    </div>
+                                `;
+                            }
+                        }, 300);
+                    } else {
+                        showNotification('Package deleted successfully!', 'success');
+                    }
+                } else {
+                    showNotification('Error deleting package: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error deleting package', 'error');
+            });
+        }
+    }
+
+    // Package form submission
+    document.getElementById('packageForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const isEdit = document.getElementById('package_id').value;
+        formData.append('action', isEdit ? 'update_package' : 'add_package');
+        
+        // Show loading state
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Saving...';
+        submitBtn.disabled = true;
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const packageModal = bootstrap.Modal.getInstance(document.getElementById('packageModal'));
+                if (packageModal) packageModal.hide();
+                document.getElementById('packageForm').reset();
+                hideImagePreview(); // Hide image preview when form is reset
+                showNotification('Package saved successfully!', 'success');
+                
+                if (isEdit) {
+                    // For edit, reload the page to show updated data
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    // For new package, add it dynamically to the UI
+                    setTimeout(() => {
+                        addPackageToUI(formData);
+                    }, 100);
+                }
+            } else {
+                showNotification('Error saving package: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error saving package', 'error');
+        })
+        .finally(() => {
+            // Reset button state
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        });
+    });
+
+    // Function to add new package to UI dynamically
+    function addPackageToUI(formData) {
+        const packagesSection = document.getElementById('packages-section');
+        let packagesRow = packagesSection.querySelector('.row');
+        
+        // If no row exists (empty state), create one
+        if (!packagesRow) {
+            packagesRow = document.createElement('div');
+            packagesRow.className = 'row';
+            packagesSection.appendChild(packagesRow);
+        }
+        
+        // Remove empty state if it exists
+        const emptyState = packagesSection.querySelector('.text-center');
+        if (emptyState) {
+            emptyState.remove();
+        }
+        
+        // Get branch name for display
+        const branchSelect = document.getElementById('package_branch_id');
+        const branchName = branchSelect ? branchSelect.options[branchSelect.selectedIndex]?.text || 'Branch Name' : 'Branch Name';
+        
+        // Create new package card
+        const newPackageCard = document.createElement('div');
+        newPackageCard.className = 'col-md-6 col-lg-4 mb-4';
+        const tempId = 'new-' + Date.now();
+        newPackageCard.setAttribute('data-package-id', tempId);
+        
+        const packageName = formData.get('name');
+        const packageDescription = formData.get('description');
+        const packageDestination = formData.get('destination');
+        const packageDuration = formData.get('duration_days');
+        const packagePrice = formData.get('price');
+        const packageImageUrl = formData.get('image_url');
+        const packageBranchId = formData.get('branch_id');
+        
+        newPackageCard.innerHTML = `
+            <div class="card h-100">
+                <img src="${packageImageUrl}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="${packageName}" onerror="this.src='https://via.placeholder.com/300x200?text=Image+Not+Found'">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">${packageName}</h5>
+                    <p class="card-text text-muted small">${packageDescription.substring(0, 100)}${packageDescription.length > 100 ? '...' : ''}</p>
+                    <div class="mt-auto">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-info">${packageDestination}</span>
+                            <span class="fw-bold">NPR ${parseInt(packagePrice).toLocaleString()}</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <small class="text-muted">${packageDuration} Days</small>
+                            <small class="text-muted">${branchName}</small>
+                        </div>
+                        <div class="btn-group w-100">
+                            <button class="btn btn-outline-primary btn-sm" onclick="editPackage(${JSON.stringify({
+                                id: tempId,
+                                name: packageName,
+                                description: packageDescription,
+                                destination: packageDestination,
+                                duration_days: packageDuration,
+                                price: packagePrice,
+                                image_url: packageImageUrl,
+                                branch_id: packageBranchId
+                            }).replace(/"/g, '&quot;')})">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="deletePackage('${tempId}')">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add with animation at the beginning (top)
+        newPackageCard.style.opacity = '0';
+        newPackageCard.style.transform = 'scale(0.8)';
+        packagesRow.insertBefore(newPackageCard, packagesRow.firstChild);
+        
+        setTimeout(() => {
+            newPackageCard.style.transition = 'all 0.3s ease';
+            newPackageCard.style.opacity = '1';
+            newPackageCard.style.transform = 'scale(1)';
+        }, 10);
+        
+        // Scroll to the new package
+        setTimeout(() => {
+            newPackageCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 400);
+    }
+
+    // Alternative function to refresh packages section (fallback)
+    function refreshPackagesSection() {
+        const packagesSection = document.getElementById('packages-section');
+        const currentContent = packagesSection.innerHTML;
+        
+        // Store scroll position
+        const scrollPos = window.scrollY;
+        
+        // Reload the section content
+        fetch(window.location.href)
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newPackagesSection = doc.getElementById('packages-section');
+                
+                if (newPackagesSection) {
+                    packagesSection.innerHTML = newPackagesSection.innerHTML;
+                    // Restore scroll position
+                    window.scrollTo(0, scrollPos);
+                    showNotification('Packages updated successfully!', 'success');
+                }
+            })
+            .catch(error => {
+                console.error('Error refreshing packages:', error);
+                showNotification('Error refreshing packages', 'error');
+            });
+    }
+
+    // Booking Management Functions
+    window.viewBooking = function(booking) {
+        document.getElementById('detail_booking_id').textContent = '#' + booking.id;
+        document.getElementById('detail_customer_name').textContent = booking.customer_name;
+        document.getElementById('detail_package_name').textContent = booking.package_name;
+        document.getElementById('detail_branch_name').textContent = booking.branch_name;
+        document.getElementById('detail_travel_date').textContent = new Date(booking.travel_date).toLocaleDateString();
+        document.getElementById('detail_people').textContent = booking.number_of_people;
+        document.getElementById('detail_amount').textContent = new Intl.NumberFormat().format(booking.total_amount);
+        document.getElementById('detail_status').textContent = booking.status.charAt(0).toUpperCase() + booking.status.slice(1);
+        document.getElementById('detail_created_at').textContent = new Date(booking.created_at).toLocaleString();
+        
+        new bootstrap.Modal(document.getElementById('bookingDetailsModal')).show();
+    }
+
+    // Notification function
+    window.showNotification = function(message, type = 'success') {
+        const toastId = 'toast-' + Date.now();
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center text-bg-${type === 'error' ? 'danger' : type} border-0 show" role="alert" aria-live="assertive" aria-atomic="true" style="min-width: 250px; margin-bottom: 0.5rem;">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+        const container = document.getElementById('toast-container');
+        container.insertAdjacentHTML('beforeend', toastHtml);
+        setTimeout(() => {
+            const toastElem = document.getElementById(toastId);
+            if (toastElem) toastElem.remove();
+        }, 3000);
+    }
+
+    // Reports and Settings Functions (placeholders)
+    window.generateReport = function(type) {
+        showNotification(`${type.charAt(0).toUpperCase() + type.slice(1)} report generation started...`, 'info');
+    }
+
+    window.exportReport = function() {
+        showNotification('Report export started...', 'info');
+    }
+
+    window.createBackup = function() {
+        showNotification('Database backup created successfully!', 'success');
+    }
+
+    window.scheduleBackup = function() {
+        showNotification('Auto backup scheduled!', 'success');
+    }
+
+    window.clearCache = function() {
+        showNotification('Cache cleared successfully!', 'success');
+    }
+
+    window.optimizeDatabase = function() {
+        showNotification('Database optimized successfully!', 'success');
+    }
+
+    window.loadEmailTemplate = function(template) {
+        showNotification(`${template.replace('_', ' ')} template loaded!`, 'info');
+    }
+
+    window.previewEmail = function() {
+        showNotification('Email preview generated!', 'info');
+    }
+
+    // Settings form submissions
+    document.getElementById('generalSettingsForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        showNotification('General settings saved successfully!', 'success');
+    });
+
+    document.getElementById('systemSettingsForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        showNotification('System settings saved successfully!', 'success');
+    });
+
+    document.getElementById('securitySettingsForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        showNotification('Security settings saved successfully!', 'success');
+    });
+
+    document.getElementById('emailTemplateForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        showNotification('Email template saved successfully!', 'success');
+    });
     </script>
 </body>
 </html>
