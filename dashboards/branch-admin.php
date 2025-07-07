@@ -11,6 +11,17 @@ $auth = new Auth($db);
 
 $auth->requireRole('branch_admin');
 
+// Session timeout enforcement
+$timeout_minutes = (int)getSystemSetting($db, 'session_timeout', 30);
+$timeout_seconds = $timeout_minutes * 60;
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout_seconds)) {
+    session_unset();
+    session_destroy();
+    header('Location: ../index.php?timeout=1');
+    exit();
+}
+$_SESSION['last_activity'] = time();
+
 if (!$_SESSION['branch_id']) {
     die("Error: No branch assigned to this admin account.");
 }
@@ -198,6 +209,31 @@ $bookings_query = "SELECT b.*, u.full_name as customer_name, u.email as customer
                    ORDER BY b.created_at DESC";
 $bookings_stmt = $db->prepare($bookings_query);
 $bookings_stmt->execute([$branch_id]);
+
+// Load system settings for currency
+function getSystemSetting($db, $key, $default = '') {
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
+        $stmt->execute([$key]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ? $result['setting_value'] : $default;
+    } catch (Exception $e) {
+        return $default;
+    }
+}
+
+// Currency helper functions
+function getCurrencySymbol($currency) {
+    switch ($currency) {
+        case 'USD': return '$';
+        case 'EUR': return '€';
+        case 'NPR':
+        default: return 'Rs.';
+    }
+}
+
+$defaultCurrency = getSystemSetting($db, 'default_currency', 'NPR');
+$currencySymbol = getCurrencySymbol($defaultCurrency);
 $branch_bookings = $bookings_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get branch packages
@@ -397,7 +433,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between">
                                         <div>
-                                            <h4>Rs.<?php echo number_format($stats['branch_revenue'] ?? 0); ?></h4>
+                                            <h4><?php echo $currencySymbol . number_format($stats['branch_revenue'] ?? 0); ?></h4>
                                             <p>Branch Revenue</p>
                                         </div>
                                         <div class="stat-icon">
@@ -440,7 +476,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                                     <td><?php echo $booking['customer_name']; ?></td>
                                                     <td><?php echo $booking['package_name']; ?></td>
                                                     <td><?php echo date('M d, Y', strtotime($booking['travel_date'])); ?></td>
-                                                    <td>Rs.<?php echo number_format($booking['total_amount']); ?></td>
+                                                    <td><?php echo $currencySymbol . number_format($booking['total_amount']); ?></td>
                                                     <td>
                                                         <span class="badge bg-<?php echo $booking['status'] == 'confirmed' ? 'success' : ($booking['status'] == 'pending' ? 'warning' : 'danger'); ?>">
                                                             <?php echo ucfirst($booking['status']); ?>
@@ -500,7 +536,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <div class="mt-auto">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <span class="badge bg-info"><?php echo $package['destination']; ?></span>
-                                            <span class="fw-bold">Rs.<?php echo number_format($package['price']); ?></span>
+                                            <span class="fw-bold"><?php echo $currencySymbol . number_format($package['price']); ?></span>
                                         </div>
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <small class="text-muted"><?php echo $package['duration_days']; ?> Days</small>
@@ -549,7 +585,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <td><?php echo $booking['package_name']; ?></td>
                                             <td><?php echo date('M d, Y', strtotime($booking['travel_date'])); ?></td>
                                             <td><?php echo $booking['number_of_people']; ?></td>
-                                            <td>Rs.<?php echo number_format($booking['total_amount']); ?></td>
+                                            <td><?php echo $currencySymbol . number_format($booking['total_amount']); ?></td>
                                             <td>
                                                 <select class="form-select form-select-sm" onchange="updateBookingStatus(<?php echo $booking['id']; ?>, this.value)">
                                                     <option value="pending" <?php echo $booking['status'] == 'pending' ? 'selected' : ''; ?>>Pending</option>
@@ -609,7 +645,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <td><?php echo $customer['email']; ?></td>
                                             <td><?php echo $customer['phone'] ?? 'N/A'; ?></td>
                                             <td><span class="badge bg-primary"><?php echo $customer['total_bookings']; ?></span></td>
-                                            <td>Rs.<?php echo number_format($customer['total_spent']); ?></td>
+                                            <td><?php echo $currencySymbol . number_format($customer['total_spent']); ?></td>
                                             <td>
                                                 <button class="btn btn-sm btn-outline-info btn-view-customer"
                                                     data-customer-id="<?php echo $customer['id']; ?>"
@@ -696,7 +732,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                         <tr>
                                             <td><?php echo $package['name']; ?></td>
                                             <td><span class="badge bg-primary"><?php echo rand(5, 25); ?></span></td>
-                                            <td>Rs.<?php echo number_format(rand(50000, 200000)); ?></td>
+                                            <td><?php echo $currencySymbol . number_format(rand(50000, 200000)); ?></td>
                                             <td>
                                                 <div class="d-flex align-items-center">
                                                     <span class="me-1"><?php echo number_format(rand(35, 50)/10, 1); ?></span>
@@ -920,7 +956,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                         <div class="form-floating">
                             <input type="number" class="form-control" id="package_price" name="price" step="0.01" required>
-                            <label for="package_price">Price (Rs.)</label>
+                                                                        <label for="package_price">Price (<?php echo $currencySymbol; ?>)</label>
                         </div>
                         <div class="form-floating">
                             <input type="url" class="form-control" id="package_image_url" name="image_url" required>
@@ -1315,7 +1351,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                         <strong>Email:</strong> ${this.getAttribute('data-customer-email')}<br>
                         <strong>Phone:</strong> ${this.getAttribute('data-customer-phone')}<br>
                         <strong>Total Bookings:</strong> ${this.getAttribute('data-customer-total-bookings')}<br>
-                        <strong>Total Spent:</strong> Rs.${this.getAttribute('data-customer-total-spent')}
+                                                        <strong>Total Spent:</strong> <?php echo $currencySymbol; ?>${this.getAttribute('data-customer-total-spent')}
                     `;
                     document.getElementById('customerDetailsContent').innerHTML = html;
                     new bootstrap.Modal(document.getElementById('customerDetailsModal')).show();

@@ -8,6 +8,27 @@ $auth = new Auth($db);
 
 $auth->requireRole('customer');
 
+// Session timeout enforcement
+function getSystemSetting($db, $key, $default = '') {
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
+        $stmt->execute([$key]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ? $result['setting_value'] : $default;
+    } catch (Exception $e) {
+        return $default;
+    }
+}
+$timeout_minutes = (int)getSystemSetting($db, 'session_timeout', 30);
+$timeout_seconds = $timeout_minutes * 60;
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout_seconds)) {
+    session_unset();
+    session_destroy();
+    header('Location: ../index.php?timeout=1');
+    exit();
+}
+$_SESSION['last_activity'] = time();
+
 $package_id = $_GET['package_id'] ?? null;
 if (!$package_id) {
     header('Location: customer.php');
@@ -26,6 +47,19 @@ if (!$package) {
     header('Location: customer.php');
     exit;
 }
+
+// Load system settings for currency
+function getCurrencySymbol($currency) {
+    switch ($currency) {
+        case 'USD': return '$';
+        case 'EUR': return '€';
+        case 'NPR':
+        default: return 'Rs.';
+    }
+}
+
+$defaultCurrency = getSystemSetting($db, 'default_currency', 'NPR');
+$currencySymbol = getCurrencySymbol($defaultCurrency);
 ?>
 
 <!DOCTYPE html>
@@ -158,7 +192,7 @@ if (!$package) {
                             <div class="col-6">
                                 <div class="text-center p-3 bg-light rounded">
                                     <i class="fas fa-rupee-sign fa-2x text-success mb-2"></i>
-                                    <h6>Rs.<?php echo number_format($package['price']); ?></h6>
+                                    <h6><?php echo $currencySymbol . number_format($package['price']); ?></h6>
                                     <small class="text-muted">Per Person</small>
                                 </div>
                             </div>
@@ -210,7 +244,7 @@ if (!$package) {
                             <div class="price-summary">
                                 <div class="d-flex justify-content-between mb-2">
                                     <span>Package Price:</span>
-                                    <span>Rs.<?php echo number_format($package['price']); ?> per person</span>
+                                    <span><?php echo $currencySymbol . number_format($package['price']); ?> per person</span>
                                 </div>
                                 <div class="d-flex justify-content-between mb-2">
                                     <span>Number of People:</span>
@@ -219,7 +253,7 @@ if (!$package) {
                                 <hr>
                                 <div class="d-flex justify-content-between fw-bold fs-5">
                                     <span>Total Amount:</span>
-                                    <span id="total_amount">Rs.0</span>
+                                    <span id="total_amount"><?php echo $currencySymbol; ?>0</span>
                                 </div>
                             </div>
                             
@@ -274,7 +308,7 @@ if (!$package) {
             const total = price * people;
             
             document.getElementById('people_count').textContent = people;
-            document.getElementById('total_amount').textContent = 'Rs.' + total.toLocaleString();
+            document.getElementById('total_amount').textContent = '<?php echo $currencySymbol; ?>' + total.toLocaleString();
             
             const bookBtn = document.getElementById('bookBtn');
             if (people > 0 && document.getElementById('travel_date').value) {
@@ -382,7 +416,7 @@ if (!$package) {
                     document.getElementById('booking-details').innerHTML = `
                         <div class="alert alert-success">
                             <strong>Booking ID:</strong> #${data.booking_id}<br>
-                            <strong>Amount Paid:</strong> Rs.${(payload.amount/100).toLocaleString()}
+                            <strong>Amount Paid:</strong> <?php echo $currencySymbol; ?>${(payload.amount/100).toLocaleString()}
                         </div>
                     `;
                     new bootstrap.Modal(document.getElementById('successModal')).show();

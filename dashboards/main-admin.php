@@ -8,6 +8,17 @@ $auth = new Auth($db);
 
 $auth->requireRole('main_admin');
 
+// Session timeout enforcement
+$timeout_minutes = (int)getSystemSetting($db, 'session_timeout', 30);
+$timeout_seconds = $timeout_minutes * 60;
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout_seconds)) {
+    session_unset();
+    session_destroy();
+    header('Location: ../index.php?timeout=1');
+    exit();
+}
+$_SESSION['last_activity'] = time();
+
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -106,6 +117,408 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             $result = $stmt->execute([$_POST['id']]);
             echo json_encode(['success' => $result]);
             exit;
+
+        // Settings Management
+        case 'save_general_settings':
+            try {
+                // Create settings table if it doesn't exist
+                $create_table = "CREATE TABLE IF NOT EXISTS system_settings (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    setting_key VARCHAR(100) UNIQUE NOT NULL,
+                    setting_value TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )";
+                $db->exec($create_table);
+                
+                $settings = [
+                    'company_name' => $_POST['company_name'],
+                    'company_email' => $_POST['company_email'],
+                    'company_phone' => $_POST['company_phone'],
+                    'company_address' => $_POST['company_address']
+                ];
+                
+                foreach ($settings as $key => $value) {
+                    $stmt = $db->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+                    $stmt->execute([$key, $value, $value]);
+                }
+                
+                echo json_encode(['success' => true, 'message' => 'General settings saved successfully!']);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'save_system_settings':
+            try {
+                $create_table = "CREATE TABLE IF NOT EXISTS system_settings (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    setting_key VARCHAR(100) UNIQUE NOT NULL,
+                    setting_value TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )";
+                $db->exec($create_table);
+                
+                $settings = [
+                    'default_currency' => $_POST['default_currency'],
+                    'date_format' => $_POST['date_format'],
+                    'timezone' => $_POST['timezone'],
+                    'email_notifications' => isset($_POST['email_notifications']) ? '1' : '0',
+                    'sms_notifications' => isset($_POST['sms_notifications']) ? '1' : '0'
+                ];
+                
+                foreach ($settings as $key => $value) {
+                    $stmt = $db->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+                    $stmt->execute([$key, $value, $value]);
+                }
+                
+                echo json_encode(['success' => true, 'message' => 'System settings saved successfully!']);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'save_security_settings':
+            try {
+                $create_table = "CREATE TABLE IF NOT EXISTS system_settings (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    setting_key VARCHAR(100) UNIQUE NOT NULL,
+                    setting_value TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )";
+                $db->exec($create_table);
+                
+                $settings = [
+                    'session_timeout' => $_POST['session_timeout'],
+                    'max_login_attempts' => $_POST['max_login_attempts'],
+                    'inactivity_days' => $_POST['inactivity_days'],
+                    'two_factor_auth' => isset($_POST['two_factor_auth']) ? '1' : '0',
+                    'password_complexity' => isset($_POST['password_complexity']) ? '1' : '0'
+                ];
+                
+                foreach ($settings as $key => $value) {
+                    $stmt = $db->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
+                    $stmt->execute([$key, $value, $value]);
+                }
+                
+                // Return the updated settings for immediate use
+                echo json_encode([
+                    'success' => true, 
+                    'message' => 'Security settings saved successfully!',
+                    'settings' => $settings
+                ]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'save_email_template':
+            try {
+                $create_table = "CREATE TABLE IF NOT EXISTS email_templates (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    template_name VARCHAR(100) UNIQUE NOT NULL,
+                    subject VARCHAR(255),
+                    body TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )";
+                $db->exec($create_table);
+                
+                $stmt = $db->prepare("INSERT INTO email_templates (template_name, subject, body) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE subject = ?, body = ?");
+                $result = $stmt->execute([
+                    $_POST['template_name'],
+                    $_POST['subject'],
+                    $_POST['body'],
+                    $_POST['subject'],
+                    $_POST['body']
+                ]);
+                
+                echo json_encode(['success' => true, 'message' => 'Email template saved successfully!']);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'unlock_account':
+            try {
+                $username = $_POST['username'];
+                $stmt = $db->prepare("DELETE FROM login_attempts WHERE username = ?");
+                $result = $stmt->execute([$username]);
+                
+                if ($result) {
+                    echo json_encode(['success' => true, 'message' => "Account unlocked successfully for user: {$username}"]);
+                } else {
+                    echo json_encode(['success' => false, 'error' => 'Failed to unlock account']);
+                }
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'get_locked_accounts':
+            try {
+                $stmt = $db->prepare("
+                    SELECT username, COUNT(*) as failed_attempts, MAX(attempt_time) as last_attempt
+                    FROM login_attempts 
+                    WHERE success = FALSE 
+                    AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+                    GROUP BY username 
+                    HAVING failed_attempts >= ?
+                ");
+                $maxAttempts = (int)getSystemSetting($db, 'max_login_attempts', 5);
+                $stmt->execute([$maxAttempts]);
+                $lockedAccounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Calculate failed attempts today (all failed login attempts recorded today)
+                $stmt = $db->prepare("
+                    SELECT COUNT(*) as failed_attempts_today
+                    FROM login_attempts 
+                    WHERE success = FALSE 
+                    AND DATE(attempt_time) = CURDATE()
+                ");
+                $stmt->execute();
+                $failedAttemptsToday = $stmt->fetch(PDO::FETCH_ASSOC)['failed_attempts_today'];
+                
+                echo json_encode([
+                    'success' => true, 
+                    'accounts' => $lockedAccounts,
+                    'current_max_attempts' => $maxAttempts,
+                    'failed_attempts_today' => $failedAttemptsToday
+                ]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'update_user_status':
+            try {
+                $user_id = $_POST['user_id'];
+                $new_status = $_POST['status'];
+                
+                $stmt = $db->prepare("UPDATE users SET status = ? WHERE id = ?");
+                $result = $stmt->execute([$new_status, $user_id]);
+                
+                if ($result) {
+                    echo json_encode(['success' => true, 'message' => 'User status updated successfully!']);
+                } else {
+                    echo json_encode(['success' => false, 'error' => 'Failed to update user status']);
+                }
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'get_inactive_users':
+            try {
+                $stmt = $db->prepare("
+                    SELECT u.*, b.name as branch_name,
+                           DATEDIFF(NOW(), u.last_login) as days_inactive
+                    FROM users u 
+                    LEFT JOIN branches b ON u.branch_id = b.id 
+                    WHERE u.role = 'customer' 
+                    AND (u.status = 'inactive' OR u.status = 'blocked')
+                    ORDER BY u.last_login ASC
+                ");
+                $stmt->execute();
+                $inactiveUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                echo json_encode(['success' => true, 'users' => $inactiveUsers]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'fix_new_accounts':
+            try {
+                // Fix any active accounts that have NULL last_login (new accounts)
+                $stmt = $db->prepare("
+                    UPDATE users 
+                    SET last_login = NOW(), status = 'active' 
+                    WHERE status = 'inactive' 
+                    AND last_login IS NULL
+                    AND role = 'customer'
+                ");
+                $result = $stmt->execute();
+                
+                if ($result) {
+                    $affected = $stmt->rowCount();
+                    echo json_encode([
+                        'success' => true, 
+                        'message' => "Fixed {$affected} new accounts that were incorrectly marked as inactive!"
+                    ]);
+                } else {
+                    echo json_encode(['success' => false, 'error' => 'Failed to fix new accounts']);
+                }
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'get_failed_attempts_today':
+            try {
+                $stmt = $db->prepare("
+                    SELECT COUNT(*) as failed_attempts_today
+                    FROM login_attempts 
+                    WHERE success = FALSE 
+                    AND DATE(attempt_time) = CURDATE()
+                ");
+                $stmt->execute();
+                $failedAttemptsToday = $stmt->fetch(PDO::FETCH_ASSOC)['failed_attempts_today'];
+                
+                echo json_encode([
+                    'success' => true, 
+                    'failed_attempts_today' => $failedAttemptsToday
+                ]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'force_update_user_statuses':
+            try {
+                // Force update user statuses using the same logic as Auth class
+                $maxAttempts = (int)getSystemSetting($db, 'max_login_attempts', 5);
+                $inactivityDays = (int)getSystemSetting($db, 'inactivity_days', 30);
+                
+                // Update customer statuses based on inactivity
+                $stmt = $db->prepare("
+                    UPDATE users 
+                    SET status = 'inactive' 
+                    WHERE role = 'customer' 
+                    AND status = 'active' 
+                    AND last_login IS NOT NULL 
+                    AND last_login < DATE_SUB(NOW(), INTERVAL ? DAY)
+                    AND id NOT IN (
+                        SELECT DISTINCT user_id FROM login_attempts 
+                        WHERE success = FALSE 
+                        AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+                        GROUP BY user_id 
+                        HAVING COUNT(*) >= ?
+                    )
+                ");
+                $stmt->execute([$inactivityDays, $maxAttempts]);
+                $inactiveUpdated = $stmt->rowCount();
+                
+                // Keep blocked users inactive (users with too many failed attempts)
+                $stmt = $db->prepare("
+                    UPDATE users 
+                    SET status = 'blocked' 
+                    WHERE id IN (
+                        SELECT DISTINCT user_id FROM login_attempts 
+                        WHERE success = FALSE 
+                        AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+                        GROUP BY user_id 
+                        HAVING COUNT(*) >= ?
+                    )
+                ");
+                $stmt->execute([$maxAttempts]);
+                $blockedUpdated = $stmt->rowCount();
+                
+                echo json_encode([
+                    'success' => true, 
+                    'message' => "User statuses updated: {$inactiveUpdated} inactive, {$blockedUpdated} blocked"
+                ]);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'create_test_blocked_users':
+            try {
+                // Create some test failed login attempts to simulate blocked users
+                $maxAttempts = (int)getSystemSetting($db, 'max_login_attempts', 5);
+                
+                // Get some customer users to make them blocked
+                $stmt = $db->prepare("SELECT id, username FROM users WHERE role = 'customer' LIMIT 2");
+                $stmt->execute();
+                $customers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                $blockedCount = 0;
+                foreach ($customers as $customer) {
+                    // Create multiple failed login attempts for each customer
+                    for ($i = 0; $i < $maxAttempts + 1; $i++) {
+                        $stmt = $db->prepare("
+                            INSERT INTO login_attempts (username, user_id, ip_address, success, attempt_time) 
+                            VALUES (?, ?, '127.0.0.1', FALSE, NOW())
+                        ");
+                        $stmt->execute([$customer['username'], $customer['id']]);
+                    }
+                    $blockedCount++;
+                }
+                
+                // Now update their status to blocked
+                if ($blockedCount > 0) {
+                    $stmt = $db->prepare("
+                        UPDATE users 
+                        SET status = 'blocked' 
+                        WHERE id IN (
+                            SELECT DISTINCT user_id FROM login_attempts 
+                            WHERE success = FALSE 
+                            AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+                            GROUP BY user_id 
+                            HAVING COUNT(*) >= ?
+                        )
+                    ");
+                    $stmt->execute([$maxAttempts]);
+                    $blockedUpdated = $stmt->rowCount();
+                    
+                    echo json_encode([
+                        'success' => true, 
+                        'message' => "Created {$blockedCount} test blocked users with {$blockedUpdated} status updates"
+                    ]);
+                } else {
+                    echo json_encode([
+                        'success' => true, 
+                        'message' => "No customers found to create test blocked users"
+                    ]);
+                }
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+            
+        case 'get_email_template':
+            try {
+                $stmt = $db->prepare("SELECT * FROM email_templates WHERE template_name = ?");
+                $stmt->execute([$_POST['template_name']]);
+                $template = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($template) {
+                    echo json_encode(['success' => true, 'template' => $template]);
+                } else {
+                    // Return default template
+                    $default_templates = [
+                        'booking_confirmation' => [
+                            'subject' => 'Booking Confirmation - TravelNepal',
+                            'body' => "Dear {customer_name},\n\nThank you for booking with TravelNepal! Your booking has been confirmed.\n\nBooking Details:\n- Package: {package_name}\n- Destination: {destination}\n- Travel Date: {travel_date}\n- Number of People: {people_count}\n- Total Amount: {total_amount}\n\nWe look forward to serving you!\n\nBest regards,\nTravelNepal Team"
+                        ],
+                        'booking_cancellation' => [
+                            'subject' => 'Booking Cancellation - TravelNepal',
+                            'body' => "Dear {customer_name},\n\nYour booking has been cancelled as requested.\n\nCancelled Booking Details:\n- Package: {package_name}\n- Destination: {destination}\n- Travel Date: {travel_date}\n\nIf you have any questions, please contact us.\n\nBest regards,\nTravelNepal Team"
+                        ],
+                        'welcome_email' => [
+                            'subject' => 'Welcome to TravelNepal',
+                            'body' => "Dear {customer_name},\n\nWelcome to TravelNepal! We're excited to have you as part of our community.\n\nWe offer amazing travel packages to beautiful destinations. Start exploring our packages today!\n\nBest regards,\nTravelNepal Team"
+                        ],
+                        'password_reset' => [
+                            'subject' => 'Password Reset Request - TravelNepal',
+                            'body' => "Dear {customer_name},\n\nYou have requested a password reset for your TravelNepal account.\n\nClick the link below to reset your password:\n{reset_link}\n\nIf you didn't request this, please ignore this email.\n\nBest regards,\nTravelNepal Team"
+                        ]
+                    ];
+                    
+                    $template_name = $_POST['template_name'];
+                    if (isset($default_templates[$template_name])) {
+                        echo json_encode(['success' => true, 'template' => $default_templates[$template_name]]);
+                    } else {
+                        echo json_encode(['success' => false, 'error' => 'Template not found']);
+                    }
+                }
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
     }
 }
 
@@ -185,7 +598,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'latest_user') {
 // Get all users
 $users_query = "SELECT u.*, b.name as branch_name FROM users u 
                 LEFT JOIN branches b ON u.branch_id = b.id 
-                WHERE u.status = 'active' ORDER BY u.created_at DESC";
+                ORDER BY u.created_at DESC";
 $users_stmt = $db->prepare($users_query);
 $users_stmt->execute();
 $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -197,6 +610,58 @@ $packages_query = "SELECT p.*, b.name as branch_name FROM packages p
 $packages_stmt = $db->prepare($packages_query);
 $packages_stmt->execute();
 $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Load system settings
+function getSystemSetting($db, $key, $default = '') {
+    try {
+        $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
+        $stmt->execute([$key]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ? $result['setting_value'] : $default;
+    } catch (Exception $e) {
+        return $default;
+    }
+}
+
+// Load settings with defaults
+$settings = [
+    'company_name' => getSystemSetting($db, 'company_name', 'TravelNepal'),
+    'company_email' => getSystemSetting($db, 'company_email', 'admin@travelnepal.com'),
+    'company_phone' => getSystemSetting($db, 'company_phone', '+977-9999999999'),
+    'company_address' => getSystemSetting($db, 'company_address', 'Thamel, Kathmandu, Nepal'),
+    'default_currency' => getSystemSetting($db, 'default_currency', 'NPR'),
+    'date_format' => getSystemSetting($db, 'date_format', 'DD/MM/YYYY'),
+    'timezone' => getSystemSetting($db, 'timezone', 'Asia/Kathmandu'),
+    'email_notifications' => getSystemSetting($db, 'email_notifications', '1'),
+    'sms_notifications' => getSystemSetting($db, 'sms_notifications', '0'),
+    'session_timeout' => getSystemSetting($db, 'session_timeout', '30'),
+    'max_login_attempts' => getSystemSetting($db, 'max_login_attempts', '5'),
+    'inactivity_days' => getSystemSetting($db, 'inactivity_days', '30'),
+    'two_factor_auth' => getSystemSetting($db, 'two_factor_auth', '0'),
+    'password_complexity' => getSystemSetting($db, 'password_complexity', '1')
+];
+
+// Currency helper functions
+function getCurrencySymbol($currency) {
+    switch ($currency) {
+        case 'USD': return '$';
+        case 'EUR': return '€';
+        case 'NPR':
+        default: return 'Rs.';
+    }
+}
+
+function getCurrencyLabel($currency) {
+    switch ($currency) {
+        case 'USD': return 'USD';
+        case 'EUR': return 'EUR';
+        case 'NPR':
+        default: return 'NPR';
+    }
+}
+
+$currencySymbol = getCurrencySymbol($settings['default_currency']);
+$currencyLabel = getCurrencyLabel($settings['default_currency']);
 ?>
 
 <!DOCTYPE html>
@@ -230,6 +695,10 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
         .form-floating {
             margin-bottom: 1rem;
         }
+        /* Make user summary numbers bold */
+        #users-section .card-body h4 {
+            font-weight: bold;
+        }
         
         /* Image Preview Styles */
         .image-preview-wrapper {
@@ -262,6 +731,58 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Loading Button Styles */
+        .btn-loading {
+            position: relative;
+            cursor: not-allowed !important;
+            opacity: 0.8;
+        }
+        
+        .btn-loading:hover {
+            transform: none !important;
+        }
+        
+        .btn-loading .fa-spinner {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Form Loading Overlay */
+        .form-loading {
+            position: relative;
+            pointer-events: none;
+        }
+        
+        .form-loading::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.7);
+            z-index: 10;
+            border-radius: 8px;
+        }
+        
+        /* Refresh button styles */
+        .position-relative .btn-outline-secondary {
+            opacity: 0.6;
+            transition: opacity 0.3s ease;
+        }
+        
+        .position-relative:hover .btn-outline-secondary {
+            opacity: 1;
+        }
+        
+        .position-relative .btn-outline-secondary:active {
+            transform: scale(0.95);
         }
     </style>
 </head>
@@ -374,7 +895,7 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between">
                                         <div>
-                                            <h4>NPR <?php echo number_format($stats['total_revenue'] ?? 0); ?></h4>
+                                            <h4><?php echo $currencySymbol . ' ' . number_format($stats['total_revenue'] ?? 0); ?></h4>
                                             <p>Total Revenue</p>
                                         </div>
                                         <div class="stat-icon">
@@ -418,7 +939,7 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                                     <td><?php echo $booking['branch_name']; ?></td>
                                                     <td><?php echo date('M d, Y', strtotime($booking['travel_date'])); ?></td>
                                                     <td><?php echo $booking['number_of_people']; ?></td>
-                                                    <td>NPR <?php echo number_format($booking['total_amount']); ?></td>
+                                                    <td><?php echo $currencySymbol . ' ' . number_format($booking['total_amount']); ?></td>
                                                     <td>
                                                         <span class="badge bg-<?php echo $booking['status'] == 'confirmed' ? 'success' : ($booking['status'] == 'pending' ? 'warning' : 'danger'); ?>">
                                                             <?php echo ucfirst($booking['status']); ?>
@@ -503,18 +1024,69 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div id="users-section" class="content-section">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h3><i class="fas fa-users me-2"></i>Users Management</h3>
-                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#userModal" onclick="openUserModal()">
-                            <i class="fas fa-plus me-1"></i>Add User
-                        </button>
+                        <div>
+                            <!-- Removed Update Statuses button -->
+                            <button class="btn btn-outline-secondary me-2" onclick="refreshUsersTable()" title="Refresh Users">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#userModal" onclick="openUserModal()">
+                                <i class="fas fa-plus me-1"></i>Add User
+                            </button>
+                        </div>
                     </div>
+                    
+                    <!-- User Status Summary -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card text-center bg-success text-white">
+                                <div class="card-body">
+                                    <h4 id="activeUsersCount">-</h4>
+                                    <p class="mb-0">Active Users</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center bg-warning text-white">
+                                <div class="card-body">
+                                    <h4 id="inactiveUsersCount">-</h4>
+                                    <p class="mb-0">Inactive Users</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center bg-danger text-white">
+                                <div class="card-body">
+                                    <h4 id="blockedUsersCount">-</h4>
+                                    <p class="mb-0">Blocked Users</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center bg-info text-white">
+                                <div class="card-body">
+                                    <h4 id="totalUsersCount">-</h4>
+                                    <p class="mb-0">Total Users</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- Filter Bar -->
                     <div class="row mb-3">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <select class="form-select" id="filterUserRole">
                                 <option value="">All Roles</option>
                                 <option value="main_admin">Main Admin</option>
                                 <option value="branch_admin">Branch Admin</option>
                                 <option value="customer">Customer</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="filterUserStatus">
+                                <option value="">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="blocked">Blocked</option>
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -525,7 +1097,7 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-5">
                             <input type="text" class="form-control" id="filterUserSearch" placeholder="Search by username, full name, or email...">
                         </div>
                     </div>
@@ -558,14 +1130,54 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                                 </span>
                                             </td>
                                             <td><?php echo $user['branch_name'] ?? 'N/A'; ?></td>
-                                            <td><span class="badge bg-success">Active</span></td>
+                                            <td>
+                                                <?php 
+                                                $statusClass = 'bg-success';
+                                                $statusText = 'Active';
+                                                if ($user['status'] === 'inactive') {
+                                                    $statusClass = 'bg-warning';
+                                                    $statusText = 'Inactive';
+                                                } elseif ($user['status'] === 'blocked') {
+                                                    $statusClass = 'bg-danger';
+                                                    $statusText = 'Blocked';
+                                                }
+                                                ?>
+                                                <span class="badge <?php echo $statusClass; ?>"><?php echo $statusText; ?></span>
+                                                <?php if ($user['role'] === 'customer' && $user['last_login']): ?>
+                                                    <br><small class="text-muted">Last: <?php echo date('M d, Y', strtotime($user['last_login'])); ?></small>
+                                                <?php endif; ?>
+                                            </td>
                                             <td class="table-actions">
-                                                <button class="btn btn-sm btn-outline-primary" onclick="editUser(<?php echo htmlspecialchars(json_encode($user)); ?>)">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                                <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(<?php echo $user['id']; ?>)">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
+                                                <div class="btn-group" role="group">
+                                                    <button class="btn btn-sm btn-outline-primary" onclick="editUser(<?php echo htmlspecialchars(json_encode($user)); ?>)" title="Edit User">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <?php if ($user['role'] === 'customer'): ?>
+                                                        <?php if ($user['status'] === 'active'): ?>
+                                                            <button class="btn btn-sm btn-outline-warning" onclick="updateUserStatus(<?php echo $user['id']; ?>, 'inactive')" title="Deactivate User">
+                                                                <i class="fas fa-user-slash"></i>
+                                                            </button>
+                                                            <button class="btn btn-sm btn-outline-danger" onclick="updateUserStatus(<?php echo $user['id']; ?>, 'blocked')" title="Block User">
+                                                                <i class="fas fa-user-lock"></i>
+                                                            </button>
+                                                        <?php elseif ($user['status'] === 'inactive'): ?>
+                                                            <button class="btn btn-sm btn-outline-success" onclick="updateUserStatus(<?php echo $user['id']; ?>, 'active')" title="Activate User">
+                                                                <i class="fas fa-user-check"></i>
+                                                            </button>
+                                                            <button class="btn btn-sm btn-outline-danger" onclick="updateUserStatus(<?php echo $user['id']; ?>, 'blocked')" title="Block User">
+                                                                <i class="fas fa-user-lock"></i>
+                                                            </button>
+                                                        <?php endif; ?>
+                                                        <?php if ($user['status'] === 'blocked'): ?>
+                                                            <button class="btn btn-sm btn-outline-info" onclick="unlockUserAccount('<?php echo $user['username']; ?>')" title="Unlock Account">
+                                                                <i class="fas fa-unlock"></i>
+                                                            </button>
+                                                        <?php endif; ?>
+                                                    <?php endif; ?>
+                                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(<?php echo $user['id']; ?>)" title="Delete User">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                         <?php endforeach; ?>
@@ -596,7 +1208,7 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <div class="mt-auto">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <span class="badge bg-info"><?php echo $package['destination']; ?></span>
-                                            <span class="fw-bold">NPR <?php echo number_format($package['price']); ?></span>
+                                            <span class="fw-bold"><?php echo $currencySymbol . ' ' . number_format($package['price']); ?></span>
                                         </div>
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <small class="text-muted"><?php echo $package['duration_days']; ?> Days</small>
@@ -647,7 +1259,7 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <td><?php echo $booking['branch_name']; ?></td>
                                             <td><?php echo date('M d, Y', strtotime($booking['travel_date'])); ?></td>
                                             <td><?php echo $booking['number_of_people']; ?></td>
-                                            <td>NPR <?php echo number_format($booking['total_amount']); ?></td>
+                                            <td><?php echo $currencySymbol . ' ' . number_format($booking['total_amount']); ?></td>
                                             <td>
                                                 <span class="badge bg-<?php echo $booking['status'] == 'confirmed' ? 'success' : ($booking['status'] == 'pending' ? 'warning' : 'danger'); ?>">
                                                     <?php echo ucfirst($booking['status']); ?>
@@ -774,7 +1386,7 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                             <td><span class="badge bg-success">20</span></td>
                                             <td><span class="badge bg-warning">3</span></td>
                                             <td><span class="badge bg-danger">2</span></td>
-                                            <td>NPR <?php echo number_format(rand(50000, 200000)); ?></td>
+                                            <td><?php echo $currencySymbol . ' ' . number_format(rand(50000, 200000)); ?></td>
                                             <td><span class="text-success"><i class="fas fa-arrow-up"></i> 12%</span></td>
                                         </tr>
                                         <?php endforeach; ?>
@@ -799,19 +1411,19 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <div class="card-body">
                                     <form id="generalSettingsForm">
                                         <div class="form-floating mb-3">
-                                            <input type="text" class="form-control" id="company_name" value="TravelNepal">
+                                            <input type="text" class="form-control" id="company_name" name="company_name" value="<?php echo htmlspecialchars($settings['company_name']); ?>" required>
                                             <label for="company_name">Company Name</label>
                                         </div>
                                         <div class="form-floating mb-3">
-                                            <input type="email" class="form-control" id="company_email" value="admin@travelnepal.com">
+                                            <input type="email" class="form-control" id="company_email" name="company_email" value="<?php echo htmlspecialchars($settings['company_email']); ?>" required>
                                             <label for="company_email">Company Email</label>
                                         </div>
                                         <div class="form-floating mb-3">
-                                            <input type="tel" class="form-control" id="company_phone" value="+977-9999999999">
+                                            <input type="tel" class="form-control" id="company_phone" name="company_phone" value="<?php echo htmlspecialchars($settings['company_phone']); ?>" required>
                                             <label for="company_phone">Company Phone</label>
                                         </div>
                                         <div class="form-floating mb-3">
-                                            <textarea class="form-control" id="company_address" style="height: 100px">Thamel, Kathmandu, Nepal</textarea>
+                                            <textarea class="form-control" id="company_address" name="company_address" style="height: 100px" required><?php echo htmlspecialchars($settings['company_address']); ?></textarea>
                                             <label for="company_address">Company Address</label>
                                         </div>
                                         <button type="submit" class="btn btn-primary">
@@ -831,37 +1443,37 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <div class="card-body">
                                     <form id="systemSettingsForm">
                                         <div class="form-floating mb-3">
-                                            <select class="form-select" id="default_currency">
-                                                <option value="NPR" selected>Nepali Rupee (Rs.)</option>
-                                                <option value="USD">US Dollar ($)</option>
-                                                <option value="EUR">Euro (€)</option>
+                                            <select class="form-select" id="default_currency" name="default_currency">
+                                                <option value="NPR" <?php echo $settings['default_currency'] === 'NPR' ? 'selected' : ''; ?>>Nepali Rupee (Rs.)</option>
+                                                <option value="USD" <?php echo $settings['default_currency'] === 'USD' ? 'selected' : ''; ?>>US Dollar ($)</option>
+                                                <option value="EUR" <?php echo $settings['default_currency'] === 'EUR' ? 'selected' : ''; ?>>Euro (€)</option>
                                             </select>
                                             <label for="default_currency">Default Currency</label>
                                         </div>
                                         <div class="form-floating mb-3">
-                                            <select class="form-select" id="date_format">
-                                                <option value="DD/MM/YYYY" selected>DD/MM/YYYY</option>
-                                                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                                                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                                            <select class="form-select" id="date_format" name="date_format">
+                                                <option value="DD/MM/YYYY" <?php echo $settings['date_format'] === 'DD/MM/YYYY' ? 'selected' : ''; ?>>DD/MM/YYYY</option>
+                                                <option value="MM/DD/YYYY" <?php echo $settings['date_format'] === 'MM/DD/YYYY' ? 'selected' : ''; ?>>MM/DD/YYYY</option>
+                                                <option value="YYYY-MM-DD" <?php echo $settings['date_format'] === 'YYYY-MM-DD' ? 'selected' : ''; ?>>YYYY-MM-DD</option>
                                             </select>
                                             <label for="date_format">Date Format</label>
                                         </div>
                                         <div class="form-floating mb-3">
-                                            <select class="form-select" id="timezone">
-                                                <option value="Asia/Kathmandu" selected>Asia/Kathmandu (NPT)</option>
-                                                <option value="UTC">UTC</option>
-                                                <option value="America/New_York">America/New_York (EST)</option>
+                                            <select class="form-select" id="timezone" name="timezone">
+                                                <option value="Asia/Kathmandu" <?php echo $settings['timezone'] === 'Asia/Kathmandu' ? 'selected' : ''; ?>>Asia/Kathmandu (NPT)</option>
+                                                <option value="UTC" <?php echo $settings['timezone'] === 'UTC' ? 'selected' : ''; ?>>UTC</option>
+                                                <option value="America/New_York" <?php echo $settings['timezone'] === 'America/New_York' ? 'selected' : ''; ?>>America/New_York (EST)</option>
                                             </select>
                                             <label for="timezone">Timezone</label>
                                         </div>
                                         <div class="form-check mb-3">
-                                            <input class="form-check-input" type="checkbox" id="email_notifications" checked>
+                                            <input class="form-check-input" type="checkbox" id="email_notifications" name="email_notifications" <?php echo $settings['email_notifications'] === '1' ? 'checked' : ''; ?>>
                                             <label class="form-check-label" for="email_notifications">
                                                 Enable Email Notifications
                                             </label>
                                         </div>
                                         <div class="form-check mb-3">
-                                            <input class="form-check-input" type="checkbox" id="sms_notifications">
+                                            <input class="form-check-input" type="checkbox" id="sms_notifications" name="sms_notifications" <?php echo $settings['sms_notifications'] === '1' ? 'checked' : ''; ?>>
                                             <label class="form-check-label" for="sms_notifications">
                                                 Enable SMS Notifications
                                             </label>
@@ -885,21 +1497,31 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <div class="card-body">
                                     <form id="securitySettingsForm">
                                         <div class="form-floating mb-3">
-                                            <input type="number" class="form-control" id="session_timeout" value="30" min="5" max="120">
+                                            <input type="number" class="form-control" id="session_timeout" name="session_timeout" value="<?php echo htmlspecialchars($settings['session_timeout']); ?>" min="5" max="120" required>
                                             <label for="session_timeout">Session Timeout (minutes)</label>
                                         </div>
                                         <div class="form-floating mb-3">
-                                            <input type="number" class="form-control" id="max_login_attempts" value="5" min="3" max="10">
+                                            <input type="number" class="form-control" id="max_login_attempts" name="max_login_attempts" value="<?php echo htmlspecialchars($settings['max_login_attempts']); ?>" min="3" max="10" required>
                                             <label for="max_login_attempts">Max Login Attempts</label>
                                         </div>
+                                        <div class="form-floating mb-3">
+                                            <input type="number" class="form-control" id="inactivity_days" name="inactivity_days" value="<?php echo htmlspecialchars($settings['inactivity_days']); ?>" min="7" max="365" required>
+                                            <label for="inactivity_days">Inactivity Period (Days)</label>
+                                        </div>
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle me-2"></i>
+                                            <strong>Current Settings:</strong><br>
+                                            • <?php echo $settings['max_login_attempts']; ?> attempts before account lockout (15-minute lockout period)<br>
+                                            • <?php echo $settings['inactivity_days']; ?> days of inactivity before account becomes inactive
+                                        </div>
                                         <div class="form-check mb-3">
-                                            <input class="form-check-input" type="checkbox" id="two_factor_auth">
+                                            <input class="form-check-input" type="checkbox" id="two_factor_auth" name="two_factor_auth" <?php echo $settings['two_factor_auth'] === '1' ? 'checked' : ''; ?>>
                                             <label class="form-check-label" for="two_factor_auth">
                                                 Enable Two-Factor Authentication
                                             </label>
                                         </div>
                                         <div class="form-check mb-3">
-                                            <input class="form-check-input" type="checkbox" id="password_complexity" checked>
+                                            <input class="form-check-input" type="checkbox" id="password_complexity" name="password_complexity" <?php echo $settings['password_complexity'] === '1' ? 'checked' : ''; ?>>
                                             <label class="form-check-label" for="password_complexity">
                                                 Enforce Strong Passwords
                                             </label>
@@ -954,6 +1576,97 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </div>
 
+                    <!-- Account Security Management -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5><i class="fas fa-user-lock me-2"></i>Account Security Management</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Locked Accounts</h6>
+                                    <p class="text-muted small">Accounts temporarily locked due to failed login attempts</p>
+                                    <button class="btn btn-outline-info btn-sm" onclick="loadLockedAccounts()">
+                                        <i class="fas fa-refresh me-1"></i>Refresh List
+                                    </button>
+                                    <div id="lockedAccountsList" class="mt-3">
+                                        <div class="text-center text-muted">
+                                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Security Statistics</h6>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="text-center p-3 bg-light rounded">
+                                                <h4 class="text-primary mb-0" id="totalLockedAccounts">-</h4>
+                                                <small class="text-muted">Locked Accounts</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="text-center p-3 bg-light rounded position-relative">
+                                                <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 mt-1 me-1" 
+                                                        onclick="refreshFailedAttemptsCount()" 
+                                                        title="Refresh count">
+                                                    <i class="fas fa-sync-alt fa-xs"></i>
+                                                </button>
+                                                <h4 class="text-warning mb-0" id="failedAttemptsToday">-</h4>
+                                                <small class="text-muted" title="Total number of failed login attempts recorded today across all users">Failed Attempts Today</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- User Status Management -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5><i class="fas fa-users-cog me-2"></i>User Status Management</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h6>Inactive & Blocked Users</h6>
+                                    <p class="text-muted small">Customers who haven't logged in for 30+ days or are blocked due to security</p>
+                                    <button class="btn btn-outline-info btn-sm me-2" onclick="loadInactiveUsers()">
+                                        <i class="fas fa-refresh me-1"></i>Refresh List
+                                    </button>
+                                    <button class="btn btn-outline-warning btn-sm" onclick="fixNewAccounts()">
+                                        <i class="fas fa-tools me-1"></i>Fix New Accounts
+                                    </button>
+                                    <div id="inactiveUsersList" class="mt-3">
+                                        <div class="text-center text-muted">
+                                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6>Status Legend</h6>
+                                    <div class="mb-2">
+                                        <span class="badge bg-success me-2">Active</span>
+                                        <small class="text-muted">Recently logged in</small>
+                                    </div>
+                                    <div class="mb-2">
+                                        <span class="badge bg-warning me-2">Inactive</span>
+                                        <small class="text-muted">No login for <?php echo $settings['inactivity_days']; ?>+ days</small>
+                                    </div>
+                                    <div class="mb-2">
+                                        <span class="badge bg-danger me-2">Blocked</span>
+                                        <small class="text-muted">Too many failed attempts</small>
+                                    </div>
+                                    <hr>
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>Auto-Management:</strong> Customer accounts automatically become inactive after <?php echo $settings['inactivity_days']; ?> days of inactivity. Blocked users remain blocked until manually unlocked.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Email Templates -->
                     <div class="card">
                         <div class="card-header">
@@ -979,14 +1692,15 @@ $packages = $packages_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 </div>
                                 <div class="col-md-8">
                                     <form id="emailTemplateForm">
+                                        <input type="hidden" id="template_name" name="template_name" value="booking_confirmation">
                                         <div class="form-floating mb-3">
-                                            <input type="text" class="form-control" id="email_subject" value="Booking Confirmation - TravelCo">
+                                            <input type="text" class="form-control" id="email_subject" name="subject" value="Booking Confirmation - TravelNepal" required>
                                             <label for="email_subject">Email Subject</label>
                                         </div>
                                         <div class="form-floating mb-3">
-                                            <textarea class="form-control" id="email_body" style="height: 200px">Dear {customer_name},
+                                            <textarea class="form-control" id="email_body" name="body" style="height: 200px" required>Dear {customer_name},
 
-Thank you for booking with TravelCo! Your booking has been confirmed.
+Thank you for booking with TravelNepal! Your booking has been confirmed.
 
 Booking Details:
 - Package: {package_name}
@@ -998,7 +1712,7 @@ Booking Details:
 We look forward to serving you!
 
 Best regards,
-TravelCo Team</textarea>
+TravelNepal Team</textarea>
                                             <label for="email_body">Email Body</label>
                                         </div>
                                         <div class="d-flex justify-content-between">
@@ -1170,7 +1884,7 @@ TravelCo Team</textarea>
                             <div class="col-md-6">
                                 <div class="form-floating">
                                     <input type="number" class="form-control" id="package_price" name="price" step="0.01" required>
-                                    <label for="package_price">Price (Rs.)</label>
+                                    <label for="package_price">Price (<?php echo $currencySymbol; ?>)</label>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -1221,7 +1935,7 @@ TravelCo Team</textarea>
                         <li class="list-group-item"><strong>Branch:</strong> <span id="detail_branch_name"></span></li>
                         <li class="list-group-item"><strong>Travel Date:</strong> <span id="detail_travel_date"></span></li>
                         <li class="list-group-item"><strong>People:</strong> <span id="detail_people"></span></li>
-                        <li class="list-group-item"><strong>Amount:</strong> NPR <span id="detail_amount"></span></li>
+                        <li class="list-group-item"><strong>Amount:</strong> <span id="detail_amount"></span></li>
                         <li class="list-group-item"><strong>Status:</strong> <span id="detail_status"></span></li>
                         <li class="list-group-item"><strong>Created At:</strong> <span id="detail_created_at"></span></li>
                     </ul>
@@ -1238,12 +1952,14 @@ TravelCo Team</textarea>
     document.addEventListener('DOMContentLoaded', function() {
         // Navigation
         window.showSection = function(section) {
+            // Store active section persistently
+            localStorage.setItem('activeSection', section);
             // Hide all sections
             document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
             document.querySelectorAll('.sidebar-menu li').forEach(li => li.classList.remove('active'));
             // Show selected section
             document.getElementById(section + '-section').classList.add('active');
-            if (event && event.target) {
+            if (typeof event !== 'undefined' && event && event.target && typeof event.target.closest === 'function') {
                 event.target.closest('li').classList.add('active');
             } else {
                 // If triggered programmatically, highlight the correct sidebar item
@@ -1264,9 +1980,16 @@ TravelCo Team</textarea>
                 'settings': 'System Settings'
             };
             document.getElementById('page-title').textContent = titles[section] || 'Main Admin Dashboard';
-            // Store active section
-            localStorage.setItem('activeSection', section);
         }
+        // Restore last active section if available, otherwise show dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            var activeSection = localStorage.getItem('activeSection');
+            if (activeSection) {
+                showSection(activeSection);
+            } else {
+                showSection('dashboard');
+            }
+        });
 
         // Branch Management
         window.openBranchModal = function(branch = null) {
@@ -1375,7 +2098,6 @@ TravelCo Team</textarea>
             const formData = new FormData(this);
             const isEdit = document.getElementById('branch_id').value;
             formData.append('action', isEdit ? 'update_branch' : 'add_branch');
-            
             fetch('', {
                 method: 'POST',
                 body: formData
@@ -1387,8 +2109,9 @@ TravelCo Team</textarea>
                     if (branchModal) branchModal.hide();
                     document.getElementById('branchForm').reset();
                     showBranchesAlert('Branch saved successfully!', 'success');
-                    // Refresh the branches table
-                    refreshBranchesTable(document.getElementById('toggle-branches-btn').textContent === 'Show Active Only');
+                    // Stay on Branches section after reload
+                    localStorage.setItem('activeSection', 'branches');
+                    location.reload();
                 } else {
                     showBranchesAlert('Error saving branch', 'danger');
                 }
@@ -1404,6 +2127,9 @@ TravelCo Team</textarea>
             const form = document.getElementById('userForm');
             const title = document.getElementById('userModalTitle');
             const branchField = document.getElementById('user_branch_id').closest('.form-floating');
+            const passwordField = document.getElementById('user_password');
+            const phoneField = document.getElementById('user_phone');
+            
             if (user) {
                 title.textContent = 'Edit User';
                 document.getElementById('user_id').value = user.id;
@@ -1412,20 +2138,28 @@ TravelCo Team</textarea>
                 document.getElementById('user_role').value = user.role;
                 document.getElementById('user_full_name').value = user.full_name;
                 document.getElementById('user_branch_id').value = user.branch_id || '';
-                // Hide password and phone fields in edit mode
-                const pwdRow = document.getElementById('user_password')?.closest('.col-md-6');
-                if (pwdRow) pwdRow.style.display = 'none';
-                const phoneRow = document.getElementById('user_phone')?.closest('.col-md-6');
-                if (phoneRow) phoneRow.style.display = 'none';
+                document.getElementById('user_phone').value = user.phone || '';
+                
+                // Clear password field and make it optional in edit mode
+                passwordField.value = '';
+                passwordField.required = false;
+                passwordField.placeholder = 'Leave blank to keep current password';
+                
+                // Show both password and phone fields
+                passwordField.closest('.col-md-6').style.display = '';
+                phoneField.closest('.col-md-6').style.display = '';
             } else {
                 title.textContent = 'Add User';
                 form.reset();
                 document.getElementById('user_id').value = '';
-                // Show password and phone fields in add mode
-                const pwdRow = document.getElementById('user_password')?.closest('.col-md-6');
-                if (pwdRow) pwdRow.style.display = '';
-                const phoneRow = document.getElementById('user_phone')?.closest('.col-md-6');
-                if (phoneRow) phoneRow.style.display = '';
+                
+                // Make password required in add mode
+                passwordField.required = true;
+                passwordField.placeholder = '';
+                
+                // Show both password and phone fields
+                passwordField.closest('.col-md-6').style.display = '';
+                phoneField.closest('.col-md-6').style.display = '';
             }
             handleUserRoleChange();
         }
@@ -1533,6 +2267,9 @@ TravelCo Team</textarea>
                     if (userModal) userModal.hide();
                     document.getElementById('userForm').reset();
                     showUsersAlert('User saved successfully!', 'success');
+                    // Stay on Users section after reload
+                    localStorage.setItem('activeSection', 'users');
+                    location.reload();
                 } else {
                     showUsersAlert('Error saving user', 'danger');
                 }
@@ -1545,24 +2282,29 @@ TravelCo Team</textarea>
         // Filtering for Users Table
         function filterUsersTable() {
             const role = document.getElementById('filterUserRole').value.toLowerCase();
+            const status = document.getElementById('filterUserStatus').value.toLowerCase();
             const branch = document.getElementById('filterUserBranch').value.toLowerCase();
             const search = document.getElementById('filterUserSearch').value.toLowerCase();
             const rows = document.querySelectorAll('#users-table tr');
             rows.forEach(row => {
                 const tds = row.querySelectorAll('td');
                 const userRole = tds[4].textContent.trim().toLowerCase();
+                const userStatusBadge = tds[6].querySelector('.badge');
+                const userStatus = userStatusBadge ? userStatusBadge.textContent.trim().toLowerCase() : '';
                 const userBranch = tds[5].textContent.trim().toLowerCase();
                 const userName = tds[1].textContent.trim().toLowerCase();
                 const fullName = tds[2].textContent.trim().toLowerCase();
                 const email = tds[3].textContent.trim().toLowerCase();
                 let show = true;
                 if (role && userRole !== role.replace('_', ' ')) show = false;
+                if (status && userStatus !== status) show = false;
                 if (branch && userBranch !== branch) show = false;
                 if (search && !(userName.includes(search) || fullName.includes(search) || email.includes(search))) show = false;
                 row.style.display = show ? '' : 'none';
             });
         }
         document.getElementById('filterUserRole').addEventListener('change', filterUsersTable);
+        document.getElementById('filterUserStatus').addEventListener('change', filterUsersTable);
         document.getElementById('filterUserBranch').addEventListener('change', filterUsersTable);
         document.getElementById('filterUserSearch').addEventListener('input', filterUsersTable);
 
@@ -1589,6 +2331,66 @@ TravelCo Team</textarea>
             showSection(activeSection);
             localStorage.removeItem('activeSection');
         }
+        
+        // Function to update user counts
+        window.updateUserCounts = function() {
+            const rows = document.querySelectorAll('#users-table tr');
+            let activeCount = 0;
+            let inactiveCount = 0;
+            let blockedCount = 0;
+            rows.forEach((row) => {
+                const statusCell = row.querySelector('td:nth-child(7)'); // Status column
+                if (statusCell) {
+                    const statusBadge = statusCell.querySelector('.badge');
+                    if (statusBadge) {
+                        const statusText = statusBadge.textContent.trim().toLowerCase();
+                        if (statusText === 'active') {
+                            activeCount++;
+                        } else if (statusText === 'inactive') {
+                            inactiveCount++;
+                        } else if (statusText === 'blocked') {
+                            blockedCount++;
+                        }
+                    }
+                }
+            });
+            const totalCount = activeCount + inactiveCount + blockedCount;
+            // Update the count displays
+            const activeElement = document.getElementById('activeUsersCount');
+            const inactiveElement = document.getElementById('inactiveUsersCount');
+            const blockedElement = document.getElementById('blockedUsersCount');
+            const totalElement = document.getElementById('totalUsersCount');
+            if (activeElement) activeElement.textContent = activeCount;
+            if (inactiveElement) inactiveElement.textContent = inactiveCount;
+            if (blockedElement) blockedElement.textContent = blockedCount;
+            if (totalElement) totalElement.textContent = totalCount;
+        }
+        
+        // Update counts when users section is shown
+        const usersLink = document.querySelector('a[onclick*="users"]');
+        if (usersLink) {
+            usersLink.addEventListener('click', function() {
+                setTimeout(() => {
+                    if (document.getElementById('users-section').classList.contains('active')) {
+                        updateUserCounts();
+                    }
+                }, 100);
+            });
+        }
+        
+        // Force update user statuses when page loads (for debugging)
+        setTimeout(() => {
+            if (document.getElementById('users-section').classList.contains('active')) {
+                updateUserCounts();
+            }
+        }, 500);
+        
+        // Also update counts when the page first loads
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                updateUserCounts();
+            }, 1000);
+        });
         // Revenue Chart (placeholder)
         const revenueCtx = document.getElementById('revenueChart');
         if (revenueCtx) {
@@ -1797,13 +2599,11 @@ TravelCo Team</textarea>
         const formData = new FormData(this);
         const isEdit = document.getElementById('package_id').value;
         formData.append('action', isEdit ? 'update_package' : 'add_package');
-        
         // Show loading state
         const submitBtn = this.querySelector('button[type="submit"]');
         const originalText = submitBtn.textContent;
         submitBtn.textContent = 'Saving...';
         submitBtn.disabled = true;
-        
         fetch('', {
             method: 'POST',
             body: formData
@@ -1816,16 +2616,9 @@ TravelCo Team</textarea>
                 document.getElementById('packageForm').reset();
                 hideImagePreview(); // Hide image preview when form is reset
                 showNotification('Package saved successfully!', 'success');
-                
-                if (isEdit) {
-                    // For edit, reload the page to show updated data
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    // For new package, add it dynamically to the UI
-                    setTimeout(() => {
-                        addPackageToUI(formData);
-                    }, 100);
-                }
+                // Always stay on Packages section after reload
+                localStorage.setItem('activeSection', 'packages');
+                location.reload();
             } else {
                 showNotification('Error saving package: ' + (data.error || 'Unknown error'), 'error');
             }
@@ -1835,7 +2628,6 @@ TravelCo Team</textarea>
             showNotification('Error saving package', 'error');
         })
         .finally(() => {
-            // Reset button state
             submitBtn.textContent = originalText;
             submitBtn.disabled = false;
         });
@@ -1886,7 +2678,7 @@ TravelCo Team</textarea>
                     <div class="mt-auto">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="badge bg-info">${packageDestination}</span>
-                            <span class="fw-bold">NPR ${parseInt(packagePrice).toLocaleString()}</span>
+                            <span class="fw-bold"><?php echo $currencySymbol; ?> ${parseInt(packagePrice).toLocaleString()}</span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <small class="text-muted">${packageDuration} Days</small>
@@ -1968,7 +2760,7 @@ TravelCo Team</textarea>
         document.getElementById('detail_branch_name').textContent = booking.branch_name;
         document.getElementById('detail_travel_date').textContent = new Date(booking.travel_date).toLocaleDateString();
         document.getElementById('detail_people').textContent = booking.number_of_people;
-        document.getElementById('detail_amount').textContent = new Intl.NumberFormat().format(booking.total_amount);
+        document.getElementById('detail_amount').textContent = '<?php echo $currencySymbol; ?> ' + new Intl.NumberFormat().format(booking.total_amount);
         document.getElementById('detail_status').textContent = booking.status.charAt(0).toUpperCase() + booking.status.slice(1);
         document.getElementById('detail_created_at').textContent = new Date(booking.created_at).toLocaleString();
         
@@ -2021,8 +2813,464 @@ TravelCo Team</textarea>
         showNotification('Database optimized successfully!', 'success');
     }
 
+    // Account Security Management Functions
+    window.loadLockedAccounts = function() {
+        const formData = new FormData();
+        formData.append('action', 'get_locked_accounts');
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayLockedAccounts(data.accounts);
+                updateSecurityStats(data.accounts, data.failed_attempts_today);
+                
+                // Update the current max attempts display if it changed
+                if (data.current_max_attempts) {
+                    const infoAlert = document.querySelector('#securitySettingsForm .alert-info');
+                    if (infoAlert) {
+                        infoAlert.innerHTML = `
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Current Setting:</strong> ${data.current_max_attempts} attempts before account lockout (15-minute lockout period)
+                        `;
+                    }
+                }
+            } else {
+                showNotification('Error loading locked accounts: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error loading locked accounts', 'error');
+        });
+    }
+
+    window.displayLockedAccounts = function(accounts) {
+        const container = document.getElementById('lockedAccountsList');
+        
+        if (accounts.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-check-circle fa-2x mb-2"></i>
+                    <p>No accounts are currently locked</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="list-group">';
+        accounts.forEach(account => {
+            const lastAttempt = new Date(account.last_attempt).toLocaleString();
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${account.username}</strong>
+                        <br>
+                        <small class="text-muted">
+                            ${account.failed_attempts} failed attempts | Last: ${lastAttempt}
+                        </small>
+                    </div>
+                    <button class="btn btn-outline-success btn-sm" onclick="unlockAccount('${account.username}')">
+                        <i class="fas fa-unlock me-1"></i>Unlock
+                    </button>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        container.innerHTML = html;
+    }
+
+    window.updateSecurityStats = function(accounts, failedAttemptsToday = null) {
+        document.getElementById('totalLockedAccounts').textContent = accounts.length;
+        
+        // Use the actual failed attempts count from the server
+        if (failedAttemptsToday !== null) {
+            document.getElementById('failedAttemptsToday').textContent = failedAttemptsToday;
+        }
+    }
+
+    window.unlockAccount = function(username) {
+        if (confirm(`Are you sure you want to unlock the account for user "${username}"?`)) {
+            const formData = new FormData();
+            formData.append('action', 'unlock_account');
+            formData.append('username', username);
+            
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    loadLockedAccounts(); // Refresh the list
+                } else {
+                    showNotification('Error unlocking account: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error unlocking account', 'error');
+            });
+        }
+    }
+
+    // Load locked accounts when settings section is shown
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add event listener to load locked accounts when settings section is shown
+        const settingsLink = document.querySelector('a[onclick*="settings"]');
+        if (settingsLink) {
+            settingsLink.addEventListener('click', function() {
+                setTimeout(() => {
+                    if (document.getElementById('settings-section').classList.contains('active')) {
+                        loadLockedAccounts();
+                        loadInactiveUsers();
+                        refreshSettingsDisplay();
+                    }
+                }, 100);
+            });
+        }
+    });
+
+    // Function to refresh settings display with current values
+    window.refreshSettingsDisplay = function() {
+        // Refresh the security settings info alert
+        const formData = new FormData();
+        formData.append('action', 'get_locked_accounts');
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.current_max_attempts) {
+                const infoAlert = document.querySelector('#securitySettingsForm .alert-info');
+                if (infoAlert) {
+                    infoAlert.innerHTML = `
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Current Setting:</strong> ${data.current_max_attempts} attempts before account lockout (15-minute lockout period)
+                    `;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error refreshing settings display:', error);
+        });
+    }
+
+    // User Status Management Functions
+    window.loadInactiveUsers = function() {
+        const formData = new FormData();
+        formData.append('action', 'get_inactive_users');
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayInactiveUsers(data.users);
+            } else {
+                showNotification('Error loading inactive users: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error loading inactive users', 'error');
+        });
+    }
+
+    window.displayInactiveUsers = function(users) {
+        const container = document.getElementById('inactiveUsersList');
+        
+        if (users.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-check-circle fa-2x mb-2"></i>
+                    <p>No inactive or blocked users found</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="list-group">';
+        users.forEach(user => {
+            const lastLogin = user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never';
+            const daysInactive = user.days_inactive || 'Unknown';
+            const statusClass = user.status === 'blocked' ? 'danger' : 'warning';
+            const statusText = user.status === 'blocked' ? 'Blocked' : 'Inactive';
+            
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${user.full_name}</strong> (${user.username})
+                        <br>
+                        <small class="text-muted">
+                            Last Login: ${lastLogin} | Days Inactive: ${daysInactive} | Role: ${user.role}
+                        </small>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-${statusClass} me-2">${statusText}</span>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-success btn-sm" onclick="updateUserStatus(${user.id}, 'active')">
+                                <i class="fas fa-check me-1"></i>Activate
+                            </button>
+                            ${user.status === 'blocked' ? `
+                                <button class="btn btn-outline-warning btn-sm" onclick="unlockUserAccount('${user.username}')">
+                                    <i class="fas fa-unlock me-1"></i>Unlock
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        container.innerHTML = html;
+    }
+
+    window.updateUserStatus = function(userId, newStatus) {
+        if (confirm(`Are you sure you want to change this user's status to "${newStatus}"?`)) {
+            const formData = new FormData();
+            formData.append('action', 'update_user_status');
+            formData.append('user_id', userId);
+            formData.append('status', newStatus);
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    // Update the user row in the users table
+                    const userRow = document.querySelector(`#users-table tr[data-user-id='${userId}']`);
+                    if (userRow) {
+                        // Update status badge
+                        const statusCell = userRow.querySelector('td:nth-child(7)');
+                        let statusClass = 'bg-success', statusText = 'Active';
+                        if (newStatus === 'inactive') { statusClass = 'bg-warning'; statusText = 'Inactive'; }
+                        else if (newStatus === 'blocked') { statusClass = 'bg-danger'; statusText = 'Blocked'; }
+                        statusCell.innerHTML = `<span class="badge ${statusClass}">${statusText}</span>`;
+                        // Update action buttons
+                        const actionCell = userRow.querySelector('td:nth-child(8)');
+                        let actionsHtml = `<div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="editUser(${userId})" title="Edit User">
+                                <i class="fas fa-edit"></i>
+                            </button>`;
+                        if (newStatus === 'active') {
+                            actionsHtml += `
+                                <button class="btn btn-sm btn-outline-warning" onclick="updateUserStatus(${userId}, 'inactive')" title="Deactivate User">
+                                    <i class="fas fa-user-slash"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="updateUserStatus(${userId}, 'blocked')" title="Block User">
+                                    <i class="fas fa-user-lock"></i>
+                                </button>
+                            `;
+                        } else if (newStatus === 'inactive') {
+                            actionsHtml += `
+                                <button class="btn btn-sm btn-outline-success" onclick="updateUserStatus(${userId}, 'active')" title="Activate User">
+                                    <i class="fas fa-user-check"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="updateUserStatus(${userId}, 'blocked')" title="Block User">
+                                    <i class="fas fa-user-lock"></i>
+                                </button>
+                            `;
+                        } else if (newStatus === 'blocked') {
+                            actionsHtml += `
+                                <button class="btn btn-sm btn-outline-info" onclick="unlockUserAccount('${userRow.children[1].textContent}')" title="Unlock Account">
+                                    <i class="fas fa-unlock"></i>
+                                </button>
+                            `;
+                        }
+                        actionsHtml += `
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${userId})" title="Delete User">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>`;
+                        actionCell.innerHTML = actionsHtml;
+                    }
+                    updateUserCounts();
+                } else {
+                    showNotification('Error updating user status: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error updating user status', 'error');
+            });
+        }
+    }
+
+    window.unlockUserAccount = function(username) {
+        if (confirm(`Are you sure you want to unlock the account for user "${username}"?`)) {
+            const formData = new FormData();
+            formData.append('action', 'unlock_account');
+            formData.append('username', username);
+            
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    loadInactiveUsers(); // Refresh the list
+                } else {
+                    showNotification('Error unlocking account: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error unlocking account', 'error');
+            });
+        }
+    }
+
+    window.fixNewAccounts = function() {
+        if (confirm('This will fix any new accounts that were incorrectly marked as inactive. Continue?')) {
+            const formData = new FormData();
+            formData.append('action', 'fix_new_accounts');
+            
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    loadInactiveUsers(); // Refresh the list
+                } else {
+                    showNotification('Error fixing accounts: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error fixing accounts', 'error');
+            });
+        }
+    }
+
+    window.refreshFailedAttemptsCount = function() {
+        const formData = new FormData();
+        formData.append('action', 'get_failed_attempts_today');
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('failedAttemptsToday').textContent = data.failed_attempts_today;
+            } else {
+                console.error('Error refreshing failed attempts count:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+
+    window.refreshUsersTable = function() {
+        // Reload the page to get fresh data
+        location.reload();
+    }
+
+    window.forceUpdateUserStatuses = function() {
+        if (confirm('This will force update all user statuses based on inactivity and failed login attempts. Continue?')) {
+            const formData = new FormData();
+            formData.append('action', 'force_update_user_statuses');
+            
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    // Reload the page to show updated statuses
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    showNotification('Error updating user statuses: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error updating user statuses', 'error');
+            });
+        }
+    }
+
+    window.createTestBlockedUsers = function() {
+        if (confirm('This will create test failed login attempts for 2 customer users to simulate blocked accounts. Continue?')) {
+            const formData = new FormData();
+            formData.append('action', 'create_test_blocked_users');
+            
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    // Reload the page to show updated statuses
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    showNotification('Error creating test blocked users: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error creating test blocked users', 'error');
+            });
+        }
+    }
+
     window.loadEmailTemplate = function(template) {
-        showNotification(`${template.replace('_', ' ')} template loaded!`, 'info');
+        // Update active state in template list
+        document.querySelectorAll('.list-group-item').forEach(item => item.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        // Load template from server
+        const formData = new FormData();
+        formData.append('action', 'get_email_template');
+        formData.append('template_name', template);
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('template_name').value = template;
+                document.getElementById('email_subject').value = data.template.subject;
+                document.getElementById('email_body').value = data.template.body;
+                showNotification(`${template.replace('_', ' ')} template loaded!`, 'success');
+            } else {
+                showNotification('Error loading template: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error loading template', 'error');
+        });
     }
 
     window.previewEmail = function() {
@@ -2032,22 +3280,208 @@ TravelCo Team</textarea>
     // Settings form submissions
     document.getElementById('generalSettingsForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        showNotification('General settings saved successfully!', 'success');
+        const formData = new FormData(this);
+        formData.append('action', 'save_general_settings');
+        
+        // Show loading state
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        const form = this;
+        
+        // Add loading state to button
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+        submitBtn.disabled = true;
+        submitBtn.classList.add('btn-loading');
+        
+        // Add loading state to form
+        form.classList.add('form-loading');
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message || 'General settings saved successfully!', 'success');
+            } else {
+                showNotification('Error saving settings: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error saving settings', 'error');
+        })
+        .finally(() => {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('btn-loading');
+            form.classList.remove('form-loading');
+        });
     });
 
     document.getElementById('systemSettingsForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        showNotification('System settings saved successfully!', 'success');
+        const formData = new FormData(this);
+        formData.append('action', 'save_system_settings');
+        
+        // Show loading state
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        const form = this;
+        
+        // Add loading state to button
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+        submitBtn.disabled = true;
+        submitBtn.classList.add('btn-loading');
+        // Add loading state to form
+        form.classList.add('form-loading');
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message || 'System settings saved successfully!', 'success');
+            } else {
+                showNotification('Error saving settings: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error saving settings', 'error');
+        })
+        .finally(() => {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('btn-loading');
+            form.classList.remove('form-loading');
+        });
     });
 
     document.getElementById('securitySettingsForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        showNotification('Security settings saved successfully!', 'success');
+        const formData = new FormData(this);
+        formData.append('action', 'save_security_settings');
+        
+        // Show loading state
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        const form = this;
+        
+        // Add loading state to button
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+        submitBtn.disabled = true;
+        submitBtn.classList.add('btn-loading');
+        // Add loading state to form
+        form.classList.add('form-loading');
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message || 'Security settings saved successfully!', 'success');
+                
+                // Update the current setting display immediately using returned data
+                if (data.settings) {
+                    const maxAttempts = data.settings.max_login_attempts;
+                    const sessionTimeout = data.settings.session_timeout;
+                    const inactivityDays = data.settings.inactivity_days;
+                    
+                    // Update the info alert with new values and show it was just updated
+                    const infoAlert = document.querySelector('#securitySettingsForm .alert-info');
+                    if (infoAlert) {
+                        infoAlert.innerHTML = `
+                            <i class="fas fa-check-circle me-2 text-success"></i>
+                            <strong>Current Settings:</strong><br>
+                            • ${maxAttempts} attempts before account lockout (15-minute lockout period)<br>
+                            • ${inactivityDays} days of inactivity before account becomes inactive
+                            <span class="badge bg-success ms-2">Updated</span>
+                        `;
+                        
+                        // Remove the "Updated" badge after 3 seconds
+                        setTimeout(() => {
+                            const badge = infoAlert.querySelector('.badge');
+                            if (badge) {
+                                badge.remove();
+                            }
+                            const icon = infoAlert.querySelector('.fas');
+                            if (icon) {
+                                icon.className = 'fas fa-info-circle me-2';
+                            }
+                        }, 3000);
+                    }
+                    
+                    // Store settings in localStorage for immediate use
+                    localStorage.setItem('security_settings', JSON.stringify(data.settings));
+                    
+                    // Update session timeout enforcement immediately
+                    if (sessionTimeout) {
+                        localStorage.setItem('session_timeout', sessionTimeout);
+                    }
+                }
+                
+                // Refresh locked accounts list to reflect new settings
+                if (document.getElementById('settings-section').classList.contains('active')) {
+                    setTimeout(() => {
+                        loadLockedAccounts();
+                    }, 500);
+                }
+                
+            } else {
+                showNotification('Error saving settings: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error saving settings', 'error');
+        })
+        .finally(() => {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('btn-loading');
+            form.classList.remove('form-loading');
+        });
     });
 
     document.getElementById('emailTemplateForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        showNotification('Email template saved successfully!', 'success');
+        const formData = new FormData(this);
+        formData.append('action', 'save_email_template');
+        
+        // Show loading state
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+        submitBtn.disabled = true;
+        submitBtn.classList.add('btn-loading');
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message || 'Email template saved successfully!', 'success');
+            } else {
+                showNotification('Error saving template: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error saving template', 'error');
+        })
+        .finally(() => {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('btn-loading');
+        });
     });
     </script>
 </body>

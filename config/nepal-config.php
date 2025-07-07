@@ -2,7 +2,7 @@
 // Nepal-specific configuration file
 
 class NepalConfig {
-    // Currency settings
+    // Currency settings - these will be overridden by system settings
     const CURRENCY_CODE = 'NPR';
     const CURRENCY_SYMBOL = 'Rs.';
     
@@ -55,8 +55,8 @@ class NepalConfig {
     }
     
     // Format currency for Nepal
-    public static function formatCurrency($amount) {
-        return 'Rs. ' . number_format($amount, 2);
+    public static function formatCurrency($amount, $currencySymbol = 'Rs.') {
+        return $currencySymbol . ' ' . number_format($amount, 2);
     }
     
     // Get Nepal provinces

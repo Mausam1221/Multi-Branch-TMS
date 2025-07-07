@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 require_once 'config/database.php';
 require_once 'config/auth.php';
@@ -17,6 +21,12 @@ $error_message = '';
 $debug_info = '';
 $register_error = '';
 $register_success = '';
+
+// Show session timeout message if redirected
+$timeout_message = '';
+if (isset($_GET['timeout']) && $_GET['timeout'] == '1') {
+    $timeout_message = 'Session expired due to inactivity. Please log in again.';
+}
 
 // Registration logic FIRST
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['reg_username'])) {
@@ -46,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['reg_username'])) {
             // Hash password
             $hashed_password = password_hash($reg_password, PASSWORD_DEFAULT);
             // Insert new customer
-            $stmt = $db->prepare("INSERT INTO users (username, email, password, role, full_name, phone, status, created_at, updated_at) VALUES (?, ?, ?, 'customer', ?, ?, 'active', NOW(), NOW())");
+            $stmt = $db->prepare("INSERT INTO users (username, email, password, role, full_name, phone, status, last_login, created_at, updated_at) VALUES (?, ?, ?, 'customer', ?, ?, 'active', NOW(), NOW(), NOW())");
             $result = $stmt->execute([$reg_username, $reg_email, $hashed_password, $reg_full_name, $reg_phone]);
             if ($result) {
                 $_SESSION['register_success'] = 'Account created successfully! You can now log in.';
@@ -68,27 +78,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['reg_username'])) {
     if (empty($username) || empty($password)) {
         $error_message = 'Please enter both username and password';
     } else {
-        $user = $auth->login($username, $password);
-        if ($user) {
-            // Clear any previous error messages
-            $error_message = '';
-            
-            // Redirect based on role
-            switch ($user['role']) {
-                case 'main_admin':
-                    header("Location: dashboards/main-admin.php");
-                    exit();
-                case 'branch_admin':
-                    header("Location: dashboards/branch-admin.php");
-                    exit();
-                case 'customer':
-                    header("Location: dashboards/customer.php");
-                    exit();
-                default:
-                    $error_message = 'Invalid user role';
+        try {
+            $user = $auth->login($username, $password);
+            if ($user) {
+                // Clear any previous error messages
+                $error_message = '';
+                
+                // Redirect based on role
+                switch ($user['role']) {
+                    case 'main_admin':
+                        header("Location: dashboards/main-admin.php");
+                        exit();
+                    case 'branch_admin':
+                        header("Location: dashboards/branch-admin.php");
+                        exit();
+                    case 'customer':
+                        header("Location: dashboards/customer.php");
+                        exit();
+                    default:
+                        $error_message = 'Invalid user role';
+                }
+            } else {
+                $error_message = 'Invalid username or password. Please check your credentials and try again.';
+                
+                // Add debug information in development
+                if (isset($_GET['debug'])) {
+                    $debug_info = "Debug: Attempted login with username: " . htmlspecialchars($username);
+                }
             }
-        } else {
-            $error_message = 'Invalid username or password. Please check your credentials and try again.';
+        } catch (Exception $e) {
+            $error_message = $e->getMessage();
+            
+            // Check if this is a lockout message and show remaining attempts
+            if (strpos($error_message, 'Account is temporarily locked') !== false || 
+                strpos($error_message, 'Too many failed attempts') !== false) {
+                // This is a lockout message, no need to show remaining attempts
+            } else {
+                // Show remaining attempts for regular failed login
+                $remainingAttempts = $auth->getRemainingAttempts($username);
+                if ($remainingAttempts > 0) {
+                    $error_message .= " Remaining attempts: {$remainingAttempts}";
+                }
+            }
             
             // Add debug information in development
             if (isset($_GET['debug'])) {
@@ -323,11 +354,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['reg_username'])) {
                     <?php if ($error_message): ?>
                         <div class="alert alert-danger">
                             <i class="fas fa-exclamation-triangle me-2"></i><?php echo $error_message; ?>
+                            <?php if (strpos($error_message, 'Account is temporarily locked') !== false || strpos($error_message, 'Too many failed attempts') !== false): ?>
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="fas fa-shield-alt me-1"></i>
+                                        This is a security measure to protect your account. The lockout will automatically expire.
+                                    </small>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
                     <?php if ($debug_info && isset($_GET['debug'])): ?>
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle me-2"></i><?php echo $debug_info; ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($timeout_message): ?>
+                        <div class="alert alert-warning">
+                            <i class="fas fa-clock me-2"></i><?php echo $timeout_message; ?>
                         </div>
                     <?php endif; ?>
                     <div class="form-floating">
@@ -337,6 +381,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['reg_username'])) {
                     <div class="form-floating">
                         <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
                         <label for="password"><i class="fas fa-lock me-2"></i>Password</label>
+                    </div>
+                    <div id="attemptsInfo" class="text-muted small" style="display: none;">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        <span id="attemptsText"></span>
                     </div>
                     <button type="submit" class="btn btn-login">
                         <i class="fas fa-sign-in-alt me-2"></i>Login
@@ -416,6 +464,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['reg_username'])) {
                 document.getElementById('registerForm').classList.add('hide');
                 document.getElementById('loginForm').classList.remove('hide');
                 document.getElementById('loginForm').classList.add('show');
+            });
+
+            // Check remaining login attempts when username is entered
+            let attemptsCheckTimeout;
+            document.getElementById('username').addEventListener('input', function() {
+                const username = this.value.trim();
+                const attemptsInfo = document.getElementById('attemptsInfo');
+                const attemptsText = document.getElementById('attemptsText');
+                
+                // Clear previous timeout
+                clearTimeout(attemptsCheckTimeout);
+                
+                if (username.length > 2) {
+                    // Add a small delay to avoid too many requests
+                    attemptsCheckTimeout = setTimeout(() => {
+                        fetch('check_attempts.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: 'username=' + encodeURIComponent(username)
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.remaining_attempts !== undefined) {
+                                if (data.remaining_attempts === 0) {
+                                    attemptsText.textContent = 'Account is locked. Please try again later.';
+                                    attemptsInfo.style.display = 'block';
+                                    attemptsInfo.className = 'text-danger small';
+                                } else if (data.remaining_attempts < 5) {
+                                    attemptsText.textContent = `${data.remaining_attempts} login attempts remaining`;
+                                    attemptsInfo.style.display = 'block';
+                                    attemptsInfo.className = 'text-warning small';
+                                } else {
+                                    attemptsInfo.style.display = 'none';
+                                }
+                            }
+                        })
+                        .catch(error => {
+                            console.log('Could not check attempts:', error);
+                        });
+                    }, 500);
+                } else {
+                    attemptsInfo.style.display = 'none';
+                }
             });
         });
     </script>
