@@ -26,7 +26,7 @@ $customer_bookings = $bookings_stmt->fetchAll(PDO::FETCH_ASSOC);
 // Get available packages
 $packages_query = "SELECT p.*, br.name as branch_name FROM packages p 
                    JOIN branches br ON p.branch_id = br.id 
-                   WHERE p.status = 'active' 
+                   WHERE p.status = 'active' AND br.status = 'active' 
                    ORDER BY p.created_at DESC";
 $packages_stmt = $db->prepare($packages_query);
 $packages_stmt->execute();
@@ -82,6 +82,7 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -374,10 +375,25 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             font-size: 16px;
         }
 
-        .category-beach { background: #fef5e7; color: #d69e2e; }
-        .category-mountain { background: #f0fff4; color: #38a169; }
-        .category-cultural { background: #fff5f5; color: #e53e3e; }
-        .category-adventure { background: #edf2f7; color: #4a5568; }
+        .category-beach {
+            background: #fef5e7;
+            color: #d69e2e;
+        }
+
+        .category-mountain {
+            background: #f0fff4;
+            color: #38a169;
+        }
+
+        .category-cultural {
+            background: #fff5f5;
+            color: #e53e3e;
+        }
+
+        .category-adventure {
+            background: #edf2f7;
+            color: #4a5568;
+        }
 
         .category-label {
             font-size: 11px;
@@ -443,10 +459,25 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             margin-top: 6px;
         }
 
-        .status-confirmed { background: #e6fffa; color: #00b894; }
-        .status-pending { background: #fef5e7; color: #d69e2e; }
-        .status-completed { background: #f0fff4; color: #38a169; }
-        .status-cancelled { background: #fed7d7; color: #e53e3e; }
+        .status-confirmed {
+            background: #e6fffa;
+            color: #00b894;
+        }
+
+        .status-pending {
+            background: #fef5e7;
+            color: #d69e2e;
+        }
+
+        .status-completed {
+            background: #f0fff4;
+            color: #38a169;
+        }
+
+        .status-cancelled {
+            background: #fed7d7;
+            color: #e53e3e;
+        }
 
         .booking-price {
             text-align: right;
@@ -980,8 +1011,13 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             color: white;
         }
 
-        .activity-booking { background: #667eea; }
-        .activity-review { background: #10b981; }
+        .activity-booking {
+            background: #667eea;
+        }
+
+        .activity-review {
+            background: #10b981;
+        }
 
         .activity-content {
             flex: 1;
@@ -1006,10 +1042,25 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             font-weight: 600;
         }
 
-        .status-confirmed { background: #e6fffa; color: #00b894; }
-        .status-pending { background: #fef5e7; color: #d69e2e; }
-        .status-completed { background: #f0fff4; color: #38a169; }
-        .status-reviewed { background: #f0f9ff; color: #0ea5e9; }
+        .status-confirmed {
+            background: #e6fffa;
+            color: #00b894;
+        }
+
+        .status-pending {
+            background: #fef5e7;
+            color: #d69e2e;
+        }
+
+        .status-completed {
+            background: #f0fff4;
+            color: #38a169;
+        }
+
+        .status-reviewed {
+            background: #f0f9ff;
+            color: #0ea5e9;
+        }
 
         .edit-profile-form {
             background: white;
@@ -1217,41 +1268,44 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
         .avatar-upload-overlay {
-          position: absolute;
-          bottom: 0;
-          right: 0;
-          background: rgba(0,0,0,0.6);
-          color: #fff;
-          border-radius: 50%;
-          width: 32px;
-          height: 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          opacity: 0;
-          transition: opacity 0.2s;
-          font-size: 18px;
-          border: 2px solid #fff;
-          z-index: 2;
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-size: 18px;
+            border: 2px solid #fff;
+            z-index: 2;
         }
+
         #profile-avatar-upload-area:hover .avatar-upload-overlay,
         #profile-avatar-upload-area:focus-within .avatar-upload-overlay {
-          opacity: 1;
+            opacity: 1;
         }
+
         #profile-avatar-upload-area {
-          cursor: pointer;
+            cursor: pointer;
         }
     </style>
 </head>
+
 <body>
     <!-- Header -->
     <div id="location-search-bar">
-      <div class="header-top">
-      </div>
-      <div class="search-container">
-        <i class="fas fa-search search-icon"></i>
-        <input type="text" class="search-bar" placeholder="Search destinations..." id="globalSearch">
-      </div>
+        <div class="header-top">
+        </div>
+        <div class="search-container">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" class="search-bar" placeholder="Search destinations..." id="globalSearch">
+        </div>
     </div>
 
     <!-- Main Content -->
@@ -1289,22 +1343,22 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="section-title">Popular Destinations</div>
                 <a href="#" class="see-more" onclick="showSection('packages-section')">See all</a>
             </div>
-            
+
             <div class="trips-container">
                 <?php foreach (array_slice($available_packages, 0, 6) as $package): ?>
-                <a href="customer-booking.php?package_id=<?php echo $package['id']; ?>" class="trip-card">
-                    <div class="trip-image" style="background-image: url('<?php echo $package['image_url']; ?>')">
-                        <div class="trip-price">Rs.<?php echo number_format($package['price']); ?></div>
-                    </div>
-                    <div class="trip-info">
-                        <div class="trip-name"><?php echo $package['name']; ?></div>
-                        <div class="trip-location">
-                            <i class="fas fa-map-marker-alt"></i>
-                            <?php echo $package['destination']; ?>
+                    <a href="customer-booking.php?package_id=<?php echo $package['id']; ?>" class="trip-card">
+                        <div class="trip-image" style="background-image: url('<?php echo $package['image_url']; ?>')">
+                            <div class="trip-price">Rs.<?php echo number_format($package['price']); ?></div>
                         </div>
-                        <div class="trip-meta"><?php echo $package['duration_days']; ?> Days</div>
-                    </div>
-                </a>
+                        <div class="trip-info">
+                            <div class="trip-name"><?php echo $package['name']; ?></div>
+                            <div class="trip-location">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <?php echo $package['destination']; ?>
+                            </div>
+                            <div class="trip-meta"><?php echo $package['duration_days']; ?> Days</div>
+                        </div>
+                    </a>
                 <?php endforeach; ?>
             </div>
 
@@ -1312,7 +1366,7 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             <div class="section-header">
                 <div class="section-title">Browse by Category</div>
             </div>
-            
+
             <div class="categories-container">
                 <a href="#" class="category-item" onclick="filterPackages('beach')">
                     <div class="category-icon category-beach">
@@ -1346,24 +1400,24 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             <div class="section-header">
                 <div class="section-title">All Destinations</div>
             </div>
-            
+
             <div class="trips-container" id="packagesContainer">
                 <?php foreach ($available_packages as $package): ?>
-                <div class="package-item">
-                    <a href="customer-booking.php?package_id=<?php echo $package['id']; ?>" class="trip-card">
-                        <div class="trip-image" style="background-image: url('<?php echo $package['image_url']; ?>')">
-                            <div class="trip-price">Rs.<?php echo number_format($package['price']); ?></div>
-                        </div>
-                        <div class="trip-info">
-                            <div class="trip-name"><?php echo $package['name']; ?></div>
-                            <div class="trip-location">
-                                <i class="fas fa-map-marker-alt"></i>
-                                <?php echo $package['destination']; ?>
+                    <div class="package-item">
+                        <a href="customer-booking.php?package_id=<?php echo $package['id']; ?>" class="trip-card">
+                            <div class="trip-image" style="background-image: url('<?php echo $package['image_url']; ?>')">
+                                <div class="trip-price">Rs.<?php echo number_format($package['price']); ?></div>
                             </div>
-                            <div class="trip-meta"><?php echo $package['duration_days']; ?> Days • by <?php echo $package['branch_name']; ?></div>
-                        </div>
-                    </a>
-                </div>
+                            <div class="trip-info">
+                                <div class="trip-name"><?php echo $package['name']; ?></div>
+                                <div class="trip-location">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <?php echo $package['destination']; ?>
+                                </div>
+                                <div class="trip-meta"><?php echo $package['duration_days']; ?> Days • by <?php echo $package['branch_name']; ?></div>
+                            </div>
+                        </a>
+                    </div>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -1373,7 +1427,7 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             <div class="section-header">
                 <div class="section-title">My Bookings</div>
             </div>
-            
+
             <!-- Booking Filters -->
             <div class="booking-filters" style="margin-bottom: 16px; display: flex; gap: 10px;">
                 <button class="btn-outline booking-filter-btn active" data-status="all">All</button>
@@ -1381,7 +1435,7 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
                 <button class="btn-outline booking-filter-btn" data-status="completed">Completed</button>
                 <button class="btn-outline booking-filter-btn" data-status="cancelled">Cancelled</button>
             </div>
-            
+
             <?php if (empty($customer_bookings)): ?>
                 <div class="empty-state">
                     <i class="fas fa-calendar-times empty-icon"></i>
@@ -1393,44 +1447,44 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
             <?php else: ?>
                 <?php foreach ($customer_bookings as $booking): ?>
-                <div class="booking-item" data-status="<?php echo strtolower($booking['status']); ?>">
-                    <div class="booking-content">
-                        <div class="booking-image" style="background-image: url('<?php echo $booking['image_url']; ?>')"></div>
-                        <div class="booking-details">
-                            <div class="booking-name"><?php echo $booking['package_name']; ?></div>
-                            <div class="booking-meta">
-                                <i class="fas fa-map-marker-alt"></i> <?php echo $booking['destination']; ?>
+                    <div class="booking-item" data-status="<?php echo strtolower($booking['status']); ?>">
+                        <div class="booking-content">
+                            <div class="booking-image" style="background-image: url('<?php echo $booking['image_url']; ?>')"></div>
+                            <div class="booking-details">
+                                <div class="booking-name"><?php echo $booking['package_name']; ?></div>
+                                <div class="booking-meta">
+                                    <i class="fas fa-map-marker-alt"></i> <?php echo $booking['destination']; ?>
+                                </div>
+                                <div class="booking-meta">
+                                    <i class="fas fa-calendar"></i> <?php echo date('M d, Y', strtotime($booking['travel_date'])); ?>
+                                </div>
+                                <div class="booking-meta">
+                                    <i class="fas fa-users"></i> <?php echo $booking['number_of_people']; ?> People
+                                </div>
+                                <div class="booking-status status-<?php echo $booking['status']; ?>">
+                                    <?php echo ucfirst($booking['status']); ?>
+                                </div>
                             </div>
-                            <div class="booking-meta">
-                                <i class="fas fa-calendar"></i> <?php echo date('M d, Y', strtotime($booking['travel_date'])); ?>
+                            <div class="booking-price">
+                                <div class="booking-amount">Rs.<?php echo number_format($booking['total_amount']); ?></div>
+                                <div class="booking-id">#<?php echo $booking['id']; ?></div>
                             </div>
-                            <div class="booking-meta">
-                                <i class="fas fa-users"></i> <?php echo $booking['number_of_people']; ?> People
-                            </div>
-                            <div class="booking-status status-<?php echo $booking['status']; ?>">
-                                <?php echo ucfirst($booking['status']); ?>
-                            </div>
+                            <?php if ($booking['status'] !== 'cancelled' && $booking['status'] !== 'completed'): ?>
+                                <div>
+                                    <button type="button" class="btn-outline btn-cancel-booking" data-booking-id="<?php echo $booking['id']; ?>">
+                                        Cancel
+                                    </button>
+                                </div>
+                            <?php endif; ?>
+                            <?php if ($booking['status'] === 'completed' && !in_array($booking['id'], $reviewed_bookings)): ?>
+                                <div>
+                                    <button type="button" class="btn-outline btn-leave-review" data-booking-id="<?php echo $booking['id']; ?>">
+                                        Leave Review
+                                    </button>
+                                </div>
+                            <?php endif; ?>
                         </div>
-                        <div class="booking-price">
-                            <div class="booking-amount">Rs.<?php echo number_format($booking['total_amount']); ?></div>
-                            <div class="booking-id">#<?php echo $booking['id']; ?></div>
-                        </div>
-                        <?php if ($booking['status'] !== 'cancelled' && $booking['status'] !== 'completed'): ?>
-                        <div>
-                            <button type="button" class="btn-outline btn-cancel-booking" data-booking-id="<?php echo $booking['id']; ?>">
-                                Cancel
-                            </button>
-                        </div>
-                        <?php endif; ?>
-                        <?php if ($booking['status'] === 'completed' && !in_array($booking['id'], $reviewed_bookings)): ?>
-                            <div>
-                                <button type="button" class="btn-outline btn-leave-review" data-booking-id="<?php echo $booking['id']; ?>">
-                                    Leave Review
-                                </button>
-                            </div>
-                        <?php endif; ?>
                     </div>
-                </div>
                 <?php endforeach; ?>
             <?php endif; ?>
         </div>
@@ -1440,19 +1494,19 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             <!-- Profile Header -->
             <div class="profile-card">
                 <div class="profile-avatar position-relative" id="profile-avatar-upload-area">
-                  <?php if (!empty($customer_details['profile_pic'])): ?>
-                    <img id="profile-avatar-img" src="/Multi-Branch%20TMS/uploads/profile_pics/<?php echo ltrim(htmlspecialchars($customer_details['profile_pic']), '/'); ?>?v=<?php echo time(); ?>" alt="Profile Picture" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
-                  <?php else: ?>
-                    <span id="profile-avatar-initial-text"><?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?></span>
-                  <?php endif; ?>
-                  <label for="profile-avatar-file" class="avatar-upload-overlay" style="cursor:pointer;">
-                    <i class="fas fa-camera"></i>
-                  </label>
-                  <input type="file" id="profile-avatar-file" name="profile_pic" accept="image/jpeg,image/png,image/gif" style="display:none;">
+                    <?php if (!empty($customer_details['profile_pic'])): ?>
+                        <img id="profile-avatar-img" src="/Multi-Branch%20TMS/uploads/profile_pics/<?php echo ltrim(htmlspecialchars($customer_details['profile_pic']), '/'); ?>?v=<?php echo time(); ?>" alt="Profile Picture" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                    <?php else: ?>
+                        <span id="profile-avatar-initial-text"><?php echo strtoupper(substr($_SESSION['full_name'], 0, 1)); ?></span>
+                    <?php endif; ?>
+                    <label for="profile-avatar-file" class="avatar-upload-overlay" style="cursor:pointer;">
+                        <i class="fas fa-camera"></i>
+                    </label>
+                    <input type="file" id="profile-avatar-file" name="profile_pic" accept="image/jpeg,image/png,image/gif" style="display:none;">
                 </div>
                 <div class="profile-name" id="profile-header-full-name"><?php echo $_SESSION['full_name']; ?></div>
                 <div class="profile-role">
-                    <?php 
+                    <?php
                     $total_trips = $customer_stats['completed_trips'] ?? 0;
                     if ($total_trips >= 10) {
                         echo "Travel Expert";
@@ -1465,7 +1519,7 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
                     }
                     ?>
                 </div>
-                
+
                 <!-- Achievement Badges -->
                 <div style="margin: 16px 0;">
                     <?php if ($customer_stats['total_bookings'] >= 1): ?>
@@ -1484,7 +1538,7 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
                         </span>
                     <?php endif; ?>
                 </div>
-                
+
                 <div class="profile-actions-row">
                     <button type="button" class="btn-primary" id="editProfileBtn">Edit Profile</button>
                     <a href="../config/logout.php" class="btn-outline">Logout</a>
@@ -1605,11 +1659,11 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
 
                 <div class="settings-item">
-                  <div class="settings-header">
-                    <div class="settings-title">Change Password</div>
-                    <button type="button" class="btn btn-primary btn-sm" id="openChangePasswordModal">Change</button>
-                  </div>
-                  <div class="settings-description">Update your account password</div>
+                    <div class="settings-header">
+                        <div class="settings-title">Change Password</div>
+                        <button type="button" class="btn btn-primary btn-sm" id="openChangePasswordModal">Change</button>
+                    </div>
+                    <div class="settings-description">Update your account password</div>
                 </div>
             </div>
         </div>
@@ -1644,132 +1698,132 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <!-- Review Modal -->
     <div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <form id="reviewForm" class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="reviewModalLabel">Leave a Review</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <input type="hidden" id="reviewBookingId" name="booking_id">
-            <div class="mb-3">
-              <label for="rating" class="form-label">Rating</label>
-              <select id="rating" name="rating" class="form-select" required>
-                <option value="">Select rating</option>
-                <option value="5">5 - Excellent</option>
-                <option value="4">4 - Good</option>
-                <option value="3">3 - Average</option>
-                <option value="2">2 - Poor</option>
-                <option value="1">1 - Terrible</option>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label for="review" class="form-label">Review</label>
-              <textarea id="review" name="review" class="form-control" rows="3" required></textarea>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="submit" class="btn btn-primary">Submit Review</button>
-          </div>
-        </form>
-      </div>
+        <div class="modal-dialog">
+            <form id="reviewForm" class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reviewModalLabel">Leave a Review</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="reviewBookingId" name="booking_id">
+                    <div class="mb-3">
+                        <label for="rating" class="form-label">Rating</label>
+                        <select id="rating" name="rating" class="form-select" required>
+                            <option value="">Select rating</option>
+                            <option value="5">5 - Excellent</option>
+                            <option value="4">4 - Good</option>
+                            <option value="3">3 - Average</option>
+                            <option value="2">2 - Poor</option>
+                            <option value="1">1 - Terrible</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="review" class="form-label">Review</label>
+                        <textarea id="review" name="review" class="form-control" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Submit Review</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Edit Profile Modal -->
     <div class="modal fade" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <form id="editProfileForm" class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="editProfileModalLabel">Edit Profile</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label for="edit-full-name" class="form-label">Full Name</label>
-              <input type="text" class="form-control" id="edit-full-name" name="full_name" required value="<?php echo htmlspecialchars($customer_details['full_name'] ?? $_SESSION['full_name']); ?>">
-            </div>
-            
-            <div class="mb-3">
-              <label for="edit-email" class="form-label">Email</label>
-              <input type="email" class="form-control" id="edit-email" name="email" required value="<?php echo htmlspecialchars($customer_details['email'] ?? $_SESSION['email']); ?>">
-            </div>
-            
-            <div class="mb-3">
-              <label for="edit-phone" class="form-label">Phone Number</label>
-              <input type="tel" class="form-control" id="edit-phone" name="phone" value="<?php echo htmlspecialchars($customer_details['phone'] ?? ''); ?>" placeholder="Enter your phone number">
-            </div>
-            
-            <div class="mb-3">
-              <label for="edit-address" class="form-label">Address</label>
-              <textarea class="form-control" id="edit-address" name="address"><?php echo htmlspecialchars($customer_details['address'] ?? ''); ?></textarea>
-            </div>
-            
-            <div class="mb-3">
-              <label for="edit-date-of-birth" class="form-label">Date of Birth</label>
-              <input type="date" class="form-control" id="edit-date-of-birth" name="date_of_birth" value="<?php echo htmlspecialchars($customer_details['date_of_birth'] ?? ''); ?>">
-            </div>
-            
-            <div class="mb-3">
-              <label for="edit-emergency-contact" class="form-label">Emergency Contact</label>
-              <input type="tel" class="form-control" id="edit-emergency-contact" name="emergency_contact" value="<?php echo htmlspecialchars($customer_details['emergency_contact'] ?? ''); ?>" placeholder="Emergency contact number">
-            </div>
-            
-            <div class="mb-3">
-              <label for="edit-travel-preferences" class="form-label">Travel Preferences</label>
-              <textarea class="form-control" id="edit-travel-preferences" name="travel_preferences"><?php echo htmlspecialchars($customer_details['travel_preferences'] ?? ''); ?></textarea>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          </div>
-        </form>
-      </div>
+        <div class="modal-dialog">
+            <form id="editProfileForm" class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editProfileModalLabel">Edit Profile</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit-full-name" class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="edit-full-name" name="full_name" required value="<?php echo htmlspecialchars($customer_details['full_name'] ?? $_SESSION['full_name']); ?>">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit-email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="edit-email" name="email" required value="<?php echo htmlspecialchars($customer_details['email'] ?? $_SESSION['email']); ?>">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit-phone" class="form-label">Phone Number</label>
+                        <input type="tel" class="form-control" id="edit-phone" name="phone" value="<?php echo htmlspecialchars($customer_details['phone'] ?? ''); ?>" placeholder="Enter your phone number">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit-address" class="form-label">Address</label>
+                        <textarea class="form-control" id="edit-address" name="address"><?php echo htmlspecialchars($customer_details['address'] ?? ''); ?></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit-date-of-birth" class="form-label">Date of Birth</label>
+                        <input type="date" class="form-control" id="edit-date-of-birth" name="date_of_birth" value="<?php echo htmlspecialchars($customer_details['date_of_birth'] ?? ''); ?>">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit-emergency-contact" class="form-label">Emergency Contact</label>
+                        <input type="tel" class="form-control" id="edit-emergency-contact" name="emergency_contact" value="<?php echo htmlspecialchars($customer_details['emergency_contact'] ?? ''); ?>" placeholder="Emergency contact number">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit-travel-preferences" class="form-label">Travel Preferences</label>
+                        <textarea class="form-control" id="edit-travel-preferences" name="travel_preferences"><?php echo htmlspecialchars($customer_details['travel_preferences'] ?? ''); ?></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Change Password Modal -->
     <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <form id="changePasswordForm" class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="changePasswordModalLabel">Change Password</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label for="current-password" class="form-label">Current Password</label>
-              <div class="input-group">
-                <input type="password" class="form-control" id="current-password" name="current_password" autocomplete="current-password">
-                <button type="button" class="btn btn-outline-secondary toggle-password" data-target="current-password" tabindex="-1">
-                  <i class="fas fa-eye"></i>
-                </button>
-              </div>
-            </div>
-            <div class="mb-3">
-              <label for="new-password" class="form-label">New Password</label>
-              <div class="input-group">
-                <input type="password" class="form-control" id="new-password" name="new_password" autocomplete="new-password">
-                <button type="button" class="btn btn-outline-secondary toggle-password" data-target="new-password" tabindex="-1">
-                  <i class="fas fa-eye"></i>
-                </button>
-              </div>
-            </div>
-            <div class="mb-3">
-              <label for="confirm-password" class="form-label">Confirm New Password</label>
-              <div class="input-group">
-                <input type="password" class="form-control" id="confirm-password" name="confirm_password" autocomplete="new-password">
-                <button type="button" class="btn btn-outline-secondary toggle-password" data-target="confirm-password" tabindex="-1">
-                  <i class="fas fa-eye"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="submit" class="btn btn-primary">Change Password</button>
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          </div>
-        </form>
-      </div>
+        <div class="modal-dialog">
+            <form id="changePasswordForm" class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="changePasswordModalLabel">Change Password</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="current-password" class="form-label">Current Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="current-password" name="current_password" autocomplete="current-password">
+                            <button type="button" class="btn btn-outline-secondary toggle-password" data-target="current-password" tabindex="-1">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new-password" class="form-label">New Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="new-password" name="new_password" autocomplete="new-password">
+                            <button type="button" class="btn btn-outline-secondary toggle-password" data-target="new-password" tabindex="-1">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm-password" class="form-label">Confirm New Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="confirm-password" name="confirm_password" autocomplete="new-password">
+                            <button type="button" class="btn btn-outline-secondary toggle-password" data-target="confirm-password" tabindex="-1">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Change Password</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -1779,28 +1833,31 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             document.querySelectorAll('.section').forEach(section => {
                 section.classList.remove('active');
             });
-            
+
             // Show selected section
             document.getElementById(sectionId).classList.add('active');
-            
+
             // Update navigation
             document.querySelectorAll('.nav-item').forEach(item => {
                 item.classList.remove('active');
             });
-            
+
             if (navItem) {
                 navItem.classList.add('active');
             }
-            
+
             // Scroll to top
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
             // Update the URL hash
             window.location.hash = sectionId;
         }
-        
+
         function filterPackages(category) {
             showSection('packages-section');
-            
+
             // Simple filter simulation
             const packages = document.querySelectorAll('.package-item');
             packages.forEach(package => {
@@ -1812,25 +1869,25 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
                 }
             });
         }
-        
+
         function toggleChatbot() {
             if (window.advancedChatbot) {
                 window.advancedChatbot.toggleChatbot();
             }
         }
-        
+
         // Global search functionality
         document.getElementById('globalSearch').addEventListener('input', function(e) {
             const searchTerm = e.target.value.toLowerCase();
-            
+
             if (searchTerm.length > 0) {
                 showSection('packages-section');
-                
+
                 const packages = document.querySelectorAll('.package-item');
                 packages.forEach(package => {
                     const packageName = package.querySelector('.trip-name').textContent.toLowerCase();
                     const destination = package.querySelector('.trip-location').textContent.toLowerCase();
-                    
+
                     if (packageName.includes(searchTerm) || destination.includes(searchTerm)) {
                         package.style.display = 'block';
                     } else {
@@ -1839,13 +1896,15 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
                 });
             }
         });
-        
+
         // Touch-friendly interactions
-        document.addEventListener('touchstart', function() {}, {passive: true});
-        
+        document.addEventListener('touchstart', function() {}, {
+            passive: true
+        });
+
         // Prevent zoom on double tap for better mobile experience
         let lastTouchEnd = 0;
-        document.addEventListener('touchend', function (event) {
+        document.addEventListener('touchend', function(event) {
             const now = (new Date()).getTime();
             if (now - lastTouchEnd <= 300) {
                 event.preventDefault();
@@ -1853,639 +1912,564 @@ $recent_activity = $activity_stmt->fetchAll(PDO::FETCH_ASSOC);
             lastTouchEnd = now;
         }, false);
     </script>
-    
+
     <?php include '../components/advanced-chatbot-widget.php'; ?>
     <script>
-    // Enhanced chatbot integration for customer dashboard
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialize advanced chatbot with customer context
-        window.advancedChatbot = new AdvancedChatbot();
-        
-        // Pass customer data to chatbot
-        advancedChatbot.userProfile = {
-            customer_id: <?php echo $customer_id; ?>,
-            username: '<?php echo $_SESSION['username']; ?>',
-            full_name: '<?php echo $_SESSION['full_name']; ?>',
-            total_bookings: <?php echo $customer_stats['total_bookings']; ?>,
-            completed_trips: <?php echo $customer_stats['completed_trips']; ?>,
-            total_spent: <?php echo $customer_stats['total_spent']; ?>,
-            voice_enabled: true,
-            preferred_language: 'mixed'
-        };
-        
-        // Auto-show chatbot for first-time visitors
-        if (!localStorage.getItem("chatbot_visited_customer")) {
-            setTimeout(() => {
-                advancedChatbot.toggleChatbot();
-                localStorage.setItem("chatbot_visited_customer", "true");
-                
-                // Send welcome message with customer context
+        // Enhanced chatbot integration for customer dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize advanced chatbot with customer context
+            window.advancedChatbot = new AdvancedChatbot();
+
+            // Pass customer data to chatbot
+            advancedChatbot.userProfile = {
+                customer_id: <?php echo $customer_id; ?>,
+                username: '<?php echo $_SESSION['username']; ?>',
+                full_name: '<?php echo $_SESSION['full_name']; ?>',
+                total_bookings: <?php echo $customer_stats['total_bookings']; ?>,
+                completed_trips: <?php echo $customer_stats['completed_trips']; ?>,
+                total_spent: <?php echo $customer_stats['total_spent']; ?>,
+                voice_enabled: true,
+                preferred_language: 'mixed'
+            };
+
+            // Auto-show chatbot for first-time visitors
+            if (!localStorage.getItem("chatbot_visited_customer")) {
                 setTimeout(() => {
-                    advancedChatbot.sendContextualWelcome();
-                }, 1000);
-            }, 3000);
-        }
-    });
+                    advancedChatbot.toggleChatbot();
+                    localStorage.setItem("chatbot_visited_customer", "true");
+
+                    // Send welcome message with customer context
+                    setTimeout(() => {
+                        advancedChatbot.sendContextualWelcome();
+                    }, 1000);
+                }, 3000);
+            }
+        });
     </script>
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('.btn-cancel-booking').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var bookingId = this.getAttribute('data-booking-id');
-                if (confirm('Are you sure you want to cancel this booking?')) {
-                    fetch('../api/cancel-booking.php', {
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.btn-cancel-booking').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var bookingId = this.getAttribute('data-booking-id');
+                    if (confirm('Are you sure you want to cancel this booking?')) {
+                        fetch('../api/cancel-booking.php', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    booking_id: bookingId
+                                })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    alert('Booking cancelled successfully.');
+                                    window.location.hash = 'bookings-section';
+                                    location.reload();
+                                } else {
+                                    alert('Failed to cancel booking: ' + (data.error || 'Unknown error'));
+                                }
+                            });
+                    }
+                });
+            });
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show modal on button click
+            document.querySelectorAll('.btn-leave-review').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    document.getElementById('reviewBookingId').value = this.getAttribute('data-booking-id');
+                    new bootstrap.Modal(document.getElementById('reviewModal')).show();
+                });
+            });
+
+            // Handle review form submission
+            document.getElementById('reviewForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = {
+                    booking_id: document.getElementById('reviewBookingId').value,
+                    rating: document.getElementById('rating').value,
+                    review: document.getElementById('review').value
+                };
+                fetch('../api/submit-review.php', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ booking_id: bookingId })
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(formData)
                     })
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
-                            alert('Booking cancelled successfully.');
-                            window.location.hash = 'bookings-section';
+                            alert('Thank you for your review!');
                             location.reload();
                         } else {
-                            alert('Failed to cancel booking: ' + (data.error || 'Unknown error'));
+                            alert('Failed to submit review: ' + (data.error || 'Unknown error'));
                         }
                     });
+            });
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Booking filter logic
+            document.querySelectorAll('.booking-filter-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    // Remove 'active' from all buttons
+                    document.querySelectorAll('.booking-filter-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    var status = this.getAttribute('data-status');
+                    document.querySelectorAll('.booking-item').forEach(function(item) {
+                        if (status === 'all' || item.getAttribute('data-status') === status) {
+                            item.style.display = '';
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
+                });
+            });
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show section from hash on page load
+            if (window.location.hash) {
+                var sectionId = window.location.hash.substring(1);
+                if (document.getElementById(sectionId)) {
+                    showSection(sectionId);
+                }
+            }
+        });
+    </script>
+    <script>
+        // Profile Management Functions
+        function cleanValue(val) {
+            return (val === 'Not provided' || val === 'Not available' || val === 'dd/mm/yyyy') ? '' : val;
+        }
+
+        // Replace the showProfileSubsection definition with this:
+        window.showProfileSubsection = function(subsection) {
+            if (subsection === 'edit') {
+                populateEditProfileForm();
+            }
+            // Hide all profile subsections
+            document.querySelectorAll('.profile-subsection').forEach(sub => {
+                sub.classList.remove('active');
+            });
+            // Show selected subsection
+            document.getElementById('profile-' + subsection).classList.add('active');
+            // Update navigation buttons
+            document.querySelectorAll('.profile-section-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            // Find and activate the corresponding button
+            const buttonMap = {
+                'details': 0,
+                'activity': 1,
+                'settings': 2,
+                'edit': 0 // Edit uses the details button
+            };
+            if (subsection !== 'edit') {
+                document.querySelectorAll('.profile-section-btn')[buttonMap[subsection]].classList.add('active');
+            }
+        };
+    </script>
+    <script>
+        window.toggleDarkMode = function() {
+            const toggle = this;
+            toggle.classList.toggle('active');
+            if (toggle.classList.contains('active')) {
+                document.body.classList.add('dark-mode');
+                localStorage.setItem('darkMode', 'true');
+            } else {
+                document.body.classList.remove('dark-mode');
+                localStorage.setItem('darkMode', 'false');
+            }
+        };
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Sync dark mode toggle and body class
+            const darkModeOn = localStorage.getItem('darkMode') === 'true';
+            if (darkModeOn) {
+                document.body.classList.add('dark-mode');
+            } else {
+                document.body.classList.remove('dark-mode');
+            }
+            // Set the toggle visual state
+            document.querySelectorAll('.settings-item').forEach(function(item) {
+                if (item.textContent.includes('Dark Mode')) {
+                    var toggle = item.querySelector('.toggle-switch');
+                    if (toggle) {
+                        if (darkModeOn) {
+                            toggle.classList.add('active');
+                        } else {
+                            toggle.classList.remove('active');
+                        }
+                    }
                 }
             });
         });
-    });
     </script>
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Show modal on button click
-        document.querySelectorAll('.btn-leave-review').forEach(function(btn) {
+        function updateLocationSearchBarVisibility() {
+            const bar = document.getElementById('location-search-bar');
+            if (!bar) return;
+            // Get the currently active section
+            const activeSection = document.querySelector('.section.active');
+            if (!activeSection) return;
+            const id = activeSection.id;
+            // Show only on home-section and packages-section (explore)
+            if (id === 'home-section' || id === 'packages-section') {
+                bar.style.display = '';
+            } else {
+                bar.style.display = 'none';
+            }
+        }
+        // Call this function after any section switch
+        // (nav-item click triggers section switch)
+        document.querySelectorAll('.nav-item').forEach(function(item) {
+            item.addEventListener('click', function() {
+                setTimeout(updateLocationSearchBarVisibility, 10);
+            });
+        });
+        // Also call on page load
+        document.addEventListener('DOMContentLoaded', updateLocationSearchBarVisibility);
+    </script>
+    <script>
+        function updateBookingTitleColor() {
+            var bookingTitle = document.querySelector('#bookings-section .section-title');
+            if (bookingTitle) {
+                if (document.body.classList.contains('dark-mode')) {
+                    bookingTitle.style.color = '#fff';
+                    bookingTitle.style.opacity = '1';
+                    bookingTitle.style.fontWeight = '700';
+                } else {
+                    bookingTitle.style.color = '';
+                    bookingTitle.style.opacity = '';
+                    bookingTitle.style.fontWeight = '';
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            updateBookingTitleColor();
+
+            // Listen for dark mode toggle
+            document.querySelectorAll('.toggle-switch').forEach(function(toggle) {
+                toggle.addEventListener('click', function() {
+                    setTimeout(updateBookingTitleColor, 10);
+                });
+            });
+
+            // Edit Profile Modal open
+            const editProfileBtn = document.getElementById('editProfileBtn');
+            if (editProfileBtn) {
+                editProfileBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const modal = document.getElementById('editProfileModal');
+                    if (modal) {
+                        new bootstrap.Modal(modal).show();
+                    }
+                });
+            }
+
+            // Edit Profile AJAX submit (with file upload)
+            const editProfileForm = document.getElementById('editProfileForm');
+            if (editProfileForm) {
+                editProfileForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    // Collect values without validation
+                    const fullName = document.getElementById('edit-full-name').value;
+                    const email = document.getElementById('edit-email').value;
+                    const phone = document.getElementById('edit-phone').value;
+                    const address = document.getElementById('edit-address').value;
+                    const dateOfBirth = document.getElementById('edit-date-of-birth').value;
+                    const emergencyContact = document.getElementById('edit-emergency-contact').value;
+                    const travelPreferences = document.getElementById('edit-travel-preferences').value;
+                    const formData = new FormData();
+                    formData.append('full_name', fullName);
+                    formData.append('email', email);
+                    formData.append('phone', phone);
+                    formData.append('address', address);
+                    formData.append('date_of_birth', dateOfBirth);
+                    formData.append('emergency_contact', emergencyContact);
+                    formData.append('travel_preferences', travelPreferences);
+                    fetch('../api/update-profile.php', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Update profile fields on the page
+                                document.getElementById('profile-full-name').textContent = fullName;
+                                document.getElementById('profile-header-full-name').textContent = fullName;
+                                document.getElementById('profile-email').textContent = email;
+                                document.getElementById('profile-phone').textContent = phone || 'Not provided';
+                                document.getElementById('profile-address').textContent = address || 'Not provided';
+                                document.getElementById('profile-date-of-birth').textContent = dateOfBirth || 'Not provided';
+                                document.getElementById('profile-emergency-contact').textContent = emergencyContact || 'Not provided';
+                                document.getElementById('profile-travel-preferences').textContent = travelPreferences || 'Not provided';
+                                showNotification('Profile updated successfully!', 'success');
+                                bootstrap.Modal.getInstance(document.getElementById('editProfileModal')).hide();
+                            } else {
+                                showNotification(data.error || 'Failed to update profile', 'error');
+                            }
+                        })
+                        .catch(() => showNotification('Failed to update profile', 'error'));
+                });
+            }
+        });
+    </script>
+    <script>
+        window.showNotification = function(message, type = 'success') {
+            // Remove any existing notification
+            const existing = document.getElementById('custom-slide-notification');
+            if (existing) existing.remove();
+
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.id = 'custom-slide-notification';
+            notification.className = `slide-notification ${type}`;
+            notification.innerHTML = `
+        <span>${message}</span>
+        <button type="button" class="close-btn" onclick="this.parentElement.remove()">×</button>
+      `;
+            document.body.appendChild(notification);
+
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 3000);
+        };
+
+        // Profile avatar upload functionality
+        document.getElementById('profile-avatar-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('profile_pic', file);
+
+                fetch('../api/upload-profile-pic.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update the avatar image
+                        const avatarImg = document.getElementById('profile-avatar-img');
+                        const avatarInitial = document.getElementById('profile-avatar-initial-text');
+                        
+                        if (avatarImg) {
+                            avatarImg.src = '../' + data.url + '?v=' + new Date().getTime();
+                        } else {
+                            // Create new image element if it doesn't exist
+                            const newImg = document.createElement('img');
+                            newImg.id = 'profile-avatar-img';
+                            newImg.src = '../' + data.url + '?v=' + new Date().getTime();
+                            newImg.alt = 'Profile Picture';
+                            newImg.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
+                            
+                            const avatarArea = document.getElementById('profile-avatar-upload-area');
+                            avatarArea.innerHTML = '';
+                            avatarArea.appendChild(newImg);
+                            avatarArea.appendChild(document.querySelector('.avatar-upload-overlay'));
+                        }
+                        
+                        if (avatarInitial) {
+                            avatarInitial.style.display = 'none';
+                        }
+                        
+                        showNotification('Profile picture updated successfully!', 'success');
+                    } else {
+                        showNotification(data.error || 'Failed to upload profile picture', 'error');
+                    }
+                })
+                .catch(() => showNotification('Failed to upload profile picture', 'error'));
+            }
+        });
+
+        // Change Password Modal
+        document.getElementById('openChangePasswordModal').addEventListener('click', function() {
+            new bootstrap.Modal(document.getElementById('changePasswordModal')).show();
+        });
+
+        // Toggle password visibility
+        document.querySelectorAll('.toggle-password').forEach(function(btn) {
             btn.addEventListener('click', function() {
-                document.getElementById('reviewBookingId').value = this.getAttribute('data-booking-id');
-                new bootstrap.Modal(document.getElementById('reviewModal')).show();
+                const targetId = this.getAttribute('data-target');
+                const input = document.getElementById(targetId);
+                const icon = this.querySelector('i');
+                
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                } else {
+                    input.type = 'password';
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                }
             });
         });
 
-        // Handle review form submission
-        document.getElementById('reviewForm').addEventListener('submit', function(e) {
+        // Change Password Form
+        document.getElementById('changePasswordForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const formData = {
-                booking_id: document.getElementById('reviewBookingId').value,
-                rating: document.getElementById('rating').value,
-                review: document.getElementById('review').value
-            };
-            fetch('../api/submit-review.php', {
+            
+            const currentPassword = document.getElementById('current-password').value;
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            
+            if (newPassword !== confirmPassword) {
+                showNotification('New passwords do not match', 'error');
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                showNotification('New password must be at least 6 characters long', 'error');
+                return;
+            }
+            
+            fetch('../api/update-profile.php', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                    confirm_password: confirmPassword
+                })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Thank you for your review!');
-                    location.reload();
+                    if (data.logout) {
+                        showNotification('Password changed successfully! Please log in again.', 'success');
+                        setTimeout(() => {
+                            window.location.href = '../index.php';
+                        }, 1500);
+                    } else {
+                        showNotification('Password changed successfully!', 'success');
+                        bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide();
+                        document.getElementById('changePasswordForm').reset();
+                    }
                 } else {
-                    alert('Failed to submit review: ' + (data.error || 'Unknown error'));
+                    showNotification(data.error || 'Failed to change password', 'error');
                 }
-            });
-        });
-    });
-    </script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Booking filter logic
-        document.querySelectorAll('.booking-filter-btn').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                // Remove 'active' from all buttons
-                document.querySelectorAll('.booking-filter-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                var status = this.getAttribute('data-status');
-                document.querySelectorAll('.booking-item').forEach(function(item) {
-                    if (status === 'all' || item.getAttribute('data-status') === status) {
-                        item.style.display = '';
-                    } else {
-                        item.style.display = 'none';
-                    }
-                });
-            });
-        });
-    });
-    </script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Show section from hash on page load
-        if (window.location.hash) {
-            var sectionId = window.location.hash.substring(1);
-            if (document.getElementById(sectionId)) {
-                showSection(sectionId);
-            }
-        }
-    });
-    </script>
-    <script>
-    // Profile Management Functions
-    function cleanValue(val) {
-        return (val === 'Not provided' || val === 'Not available' || val === 'dd/mm/yyyy') ? '' : val;
-    }
-
-    // Replace the showProfileSubsection definition with this:
-    window.showProfileSubsection = function(subsection) {
-        if (subsection === 'edit') {
-            populateEditProfileForm();
-        }
-        // Hide all profile subsections
-        document.querySelectorAll('.profile-subsection').forEach(sub => {
-            sub.classList.remove('active');
-        });
-        // Show selected subsection
-        document.getElementById('profile-' + subsection).classList.add('active');
-        // Update navigation buttons
-        document.querySelectorAll('.profile-section-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        // Find and activate the corresponding button
-        const buttonMap = {
-            'details': 0,
-            'activity': 1,
-            'settings': 2,
-            'edit': 0 // Edit uses the details button
-        };
-        if (subsection !== 'edit') {
-            document.querySelectorAll('.profile-section-btn')[buttonMap[subsection]].classList.add('active');
-        }
-    };
-    </script>
-    <script>
-    window.toggleDarkMode = function() {
-        const toggle = this;
-        toggle.classList.toggle('active');
-        if (toggle.classList.contains('active')) {
-            document.body.classList.add('dark-mode');
-            localStorage.setItem('darkMode', 'true');
-        } else {
-            document.body.classList.remove('dark-mode');
-            localStorage.setItem('darkMode', 'false');
-        }
-    };
-    </script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Sync dark mode toggle and body class
-        const darkModeOn = localStorage.getItem('darkMode') === 'true';
-        if (darkModeOn) {
-            document.body.classList.add('dark-mode');
-        } else {
-            document.body.classList.remove('dark-mode');
-        }
-        // Set the toggle visual state
-        document.querySelectorAll('.settings-item').forEach(function(item) {
-            if (item.textContent.includes('Dark Mode')) {
-                var toggle = item.querySelector('.toggle-switch');
-                if (toggle) {
-                    if (darkModeOn) {
-                        toggle.classList.add('active');
-                    } else {
-                        toggle.classList.remove('active');
-                    }
-                }
-            }
-        });
-    });
-    </script>
-    <script>
-    function updateLocationSearchBarVisibility() {
-        const bar = document.getElementById('location-search-bar');
-        if (!bar) return;
-        // Get the currently active section
-        const activeSection = document.querySelector('.section.active');
-        if (!activeSection) return;
-        const id = activeSection.id;
-        // Show only on home-section and packages-section (explore)
-        if (id === 'home-section' || id === 'packages-section') {
-            bar.style.display = '';
-        } else {
-            bar.style.display = 'none';
-        }
-    }
-    // Call this function after any section switch
-    // (nav-item click triggers section switch)
-    document.querySelectorAll('.nav-item').forEach(function(item) {
-        item.addEventListener('click', function() {
-            setTimeout(updateLocationSearchBarVisibility, 10);
-        });
-    });
-    // Also call on page load
-    document.addEventListener('DOMContentLoaded', updateLocationSearchBarVisibility);
-    </script>
-    <script>
-    function updateBookingTitleColor() {
-        var bookingTitle = document.querySelector('#bookings-section .section-title');
-        if (bookingTitle) {
-            if (document.body.classList.contains('dark-mode')) {
-                bookingTitle.style.color = '#fff';
-                bookingTitle.style.opacity = '1';
-                bookingTitle.style.fontWeight = '700';
-            } else {
-                bookingTitle.style.color = '';
-                bookingTitle.style.opacity = '';
-                bookingTitle.style.fontWeight = '';
-            }
-        }
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        updateBookingTitleColor();
-
-        // Listen for dark mode toggle
-        document.querySelectorAll('.toggle-switch').forEach(function(toggle) {
-            toggle.addEventListener('click', function() {
-                setTimeout(updateBookingTitleColor, 10);
-            });
-        });
-
-        // Edit Profile Modal open
-        const editProfileBtn = document.getElementById('editProfileBtn');
-        if (editProfileBtn) {
-            editProfileBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                const modal = document.getElementById('editProfileModal');
-                if (modal) {
-                    new bootstrap.Modal(modal).show();
-                }
-            });
-        }
-
-        // Edit Profile AJAX submit (with file upload)
-        const editProfileForm = document.getElementById('editProfileForm');
-        if (editProfileForm) {
-            editProfileForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                // Collect values without validation
-                const fullName = document.getElementById('edit-full-name').value;
-                const email = document.getElementById('edit-email').value;
-                const phone = document.getElementById('edit-phone').value;
-                const address = document.getElementById('edit-address').value;
-                const dateOfBirth = document.getElementById('edit-date-of-birth').value;
-                const emergencyContact = document.getElementById('edit-emergency-contact').value;
-                const travelPreferences = document.getElementById('edit-travel-preferences').value;
-                const formData = new FormData();
-                formData.append('full_name', fullName);
-                formData.append('email', email);
-                formData.append('phone', phone);
-                formData.append('address', address);
-                formData.append('date_of_birth', dateOfBirth);
-                formData.append('emergency_contact', emergencyContact);
-                formData.append('travel_preferences', travelPreferences);
-                fetch('../api/update-profile.php', {
-                  method: 'POST',
-                  body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                  if (data.success) {
-                    // Update profile fields on the page
-                    document.getElementById('profile-full-name').textContent = fullName;
-                    document.getElementById('profile-header-full-name').textContent = fullName;
-                    document.getElementById('profile-email').textContent = email;
-                    document.getElementById('profile-phone').textContent = phone || 'Not provided';
-                    document.getElementById('profile-address').textContent = address || 'Not provided';
-                    document.getElementById('profile-date-of-birth').textContent = dateOfBirth || 'Not provided';
-                    document.getElementById('profile-emergency-contact').textContent = emergencyContact || 'Not provided';
-                    document.getElementById('profile-travel-preferences').textContent = travelPreferences || 'Not provided';
-                    showNotification('Profile updated successfully!', 'success');
-                    bootstrap.Modal.getInstance(document.getElementById('editProfileModal')).hide();
-                  } else {
-                    showNotification(data.error || 'Failed to update profile', 'error');
-                  }
-                })
-                .catch(() => showNotification('Failed to update profile', 'error'));
-            });
-        }
-    });
-    </script>
-    <script>
-    window.showNotification = function(message, type = 'success') {
-      // Remove any existing notification
-      const existing = document.getElementById('custom-slide-notification');
-      if (existing) existing.remove();
-
-      // Create notification element
-      const notification = document.createElement('div');
-      notification.id = 'custom-slide-notification';
-      notification.className = `slide-notification ${type}`;
-      notification.innerHTML = `
-        <span>${message}</span>
-        <button type="button" class="close-btn" onclick="this.parentElement.remove()">×</button>
-      `;
-      document.body.appendChild(notification);
-
-      // Trigger slide-in
-      setTimeout(() => notification.classList.add('show'), 10);
-
-      // Auto remove after 3 seconds with slide-out
-      setTimeout(() => {
-        notification.classList.add('hide');
-        setTimeout(() => notification.remove(), 500);
-      }, 3000);
-    };
-    </script>
-    <!-- Add this near the end of <body>, before </body> -->
-    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 11000;">
-      <div id="mainToast" class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-          <div class="toast-body" id="mainToastBody">
-            <!-- Message will go here -->
-          </div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-      </div>
-    </div>
-    <script>
-    window.showNotification = function(message, type = 'success') {
-      // Set toast color based on type
-      const toast = document.getElementById('mainToast');
-      const toastBody = document.getElementById('mainToastBody');
-      toast.className = 'toast align-items-center border-0';
-      if (type === 'error') {
-        toast.classList.add('text-bg-danger');
-      } else if (type === 'success') {
-        toast.classList.add('text-bg-success');
-      } else {
-        toast.classList.add('text-bg-primary');
-      }
-      toastBody.textContent = message;
-
-      // Show the toast using Bootstrap's JS API
-      const bsToast = bootstrap.Toast.getOrCreateInstance(toast);
-      bsToast.show();
-    };
-    </script>
-    <!-- Toast with progress bar -->
-    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 11000;">
-      <div id="mainToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-          <div class="toast-body" id="mainToastBody"></div>
-          <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="progress toast-progress" style="height: 3px;">
-          <div id="mainToastProgress" class="progress-bar bg-success" style="width: 100%;"></div>
-        </div>
-      </div>
-    </div>
-    <script>
-    window.showNotification = function(message, type = 'success') {
-      const toast = document.getElementById('mainToast');
-      const toastBody = document.getElementById('mainToastBody');
-      const progressBar = document.getElementById('mainToastProgress');
-      toast.className = 'toast align-items-center border-0';
-      progressBar.className = 'progress-bar';
-      if (type === 'error') {
-        toast.classList.add('bg-danger', 'text-white');
-        progressBar.classList.add('bg-danger');
-      } else if (type === 'success') {
-        toast.classList.add('bg-success', 'text-white');
-        progressBar.classList.add('bg-success');
-      } else {
-        toast.classList.add('bg-primary', 'text-white');
-        progressBar.classList.add('bg-primary');
-      }
-      toastBody.textContent = message;
-
-      // Reset progress bar
-      progressBar.style.width = '100%';
-      progressBar.style.transition = 'none';
-
-      // Show the toast using Bootstrap's JS API
-      const bsToast = bootstrap.Toast.getOrCreateInstance(toast);
-      bsToast.show();
-
-      // Animate the progress bar
-      setTimeout(() => {
-        progressBar.style.transition = 'width 2.8s linear';
-        progressBar.style.width = '0%';
-      }, 100); // slight delay to trigger transition
-
-      // Optionally, hide the toast after 3s (Bootstrap default is 5s)
-      setTimeout(() => {
-        bsToast.hide();
-      }, 3000);
-    };
-    </script>
-
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Only preview image on file select
-      const fileInput = document.getElementById('edit-profile-pic');
-      const previewImg = document.getElementById('edit-profile-pic-preview');
-      if (fileInput && previewImg) {
-        fileInput.addEventListener('change', function() {
-          if (this.files && this.files[0]) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-              previewImg.src = e.target.result;
-            };
-            reader.readAsDataURL(this.files[0]);
-          }
-        });
-      }
-
-      // Edit Profile AJAX submit (with file upload)
-      const editProfileForm = document.getElementById('editProfileForm');
-      if (editProfileForm) {
-        editProfileForm.addEventListener('submit', function(e) {
-          e.preventDefault();
-          // Collect values without validation
-          const fullName = document.getElementById('edit-full-name').value;
-          const email = document.getElementById('edit-email').value;
-          const phone = document.getElementById('edit-phone').value;
-          const address = document.getElementById('edit-address').value;
-          const dateOfBirth = document.getElementById('edit-date-of-birth').value;
-          const emergencyContact = document.getElementById('edit-emergency-contact').value;
-          const travelPreferences = document.getElementById('edit-travel-preferences').value;
-          const formData = new FormData();
-          formData.append('full_name', fullName);
-          formData.append('email', email);
-          formData.append('phone', phone);
-          formData.append('address', address);
-          formData.append('date_of_birth', dateOfBirth);
-          formData.append('emergency_contact', emergencyContact);
-          formData.append('travel_preferences', travelPreferences);
-          fetch('../api/update-profile.php', {
-            method: 'POST',
-            body: formData
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              // Update profile fields on the page
-              document.getElementById('profile-full-name').textContent = fullName;
-              document.getElementById('profile-header-full-name').textContent = fullName;
-              document.getElementById('profile-email').textContent = email;
-              document.getElementById('profile-phone').textContent = phone || 'Not provided';
-              document.getElementById('profile-address').textContent = address || 'Not provided';
-              document.getElementById('profile-date-of-birth').textContent = dateOfBirth || 'Not provided';
-              document.getElementById('profile-emergency-contact').textContent = emergencyContact || 'Not provided';
-              document.getElementById('profile-travel-preferences').textContent = travelPreferences || 'Not provided';
-              showNotification('Profile updated successfully!', 'success');
-              bootstrap.Modal.getInstance(document.getElementById('editProfileModal')).hide();
-            } else {
-              showNotification(data.error || 'Failed to update profile', 'error');
-            }
-          })
-          .catch(() => showNotification('Failed to update profile', 'error'));
-        });
-      }
-    });
-    </script>
-
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const avatarFileInput = document.getElementById('profile-avatar-file');
-      const avatarImg = document.getElementById('profile-avatar-img');
-      const avatarInitial = document.getElementById('profile-avatar-initial-text');
-      const avatarArea = document.getElementById('profile-avatar-upload-area');
-
-      if (avatarFileInput && avatarArea) {
-        avatarFileInput.addEventListener('change', function() {
-          if (this.files && this.files[0]) {
-            const formData = new FormData();
-            formData.append('profile_pic', this.files[0]);
-            fetch('../api/upload-profile-pic.php', {
-              method: 'POST',
-              body: formData
             })
-            .then(res => res.json())
+            .catch(() => showNotification('Failed to change password', 'error'));
+        });
+
+        // Language change functionality
+        window.changeLanguage = function(language) {
+            fetch('../api/update-preference.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    language: language
+                })
+            })
+            .then(response => response.json())
             .then(data => {
-              if (data.success && data.url) {
-                // Always use the absolute path for the image
-                let imgUrl = '/Multi-Branch%20TMS/' + (data.url.startsWith('/') ? data.url.substring(1) : data.url);
-                imgUrl = imgUrl + '?v=' + new Date().getTime();
-                document.querySelectorAll('#profile-avatar-img').forEach(function(img) {
-                  img.src = imgUrl;
-                  img.style.display = 'block';
-                });
-                if (avatarInitial) {
-                  const img = document.createElement('img');
-                  img.id = 'profile-avatar-img';
-                  img.src = imgUrl;
-                  img.alt = 'Profile Picture';
-                  img.style.width = '100%';
-                  img.style.height = '100%';
-                  img.style.objectFit = 'cover';
-                  img.style.borderRadius = '50%';
-                  avatarInitial.replaceWith(img);
+                if (data.success) {
+                    showNotification('Language preference updated!', 'success');
+                } else {
+                    showNotification('Failed to update language preference', 'error');
                 }
-                showNotification('Profile picture updated!', 'success');
-              } else {
-                showNotification(data.error || 'Failed to upload image', 'error');
-              }
             })
-            .catch(() => showNotification('Failed to upload image', 'error'));
-          }
-        });
-      }
-    });
-    </script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const editProfileModal = document.getElementById('editProfileModal');
-      if (editProfileModal) {
-        editProfileModal.addEventListener('show.bs.modal', function () {
-          const submitBtn = document.querySelector('#editProfileForm button[type="submit"]');
-          if (submitBtn) {
-            submitBtn.textContent = 'Save Changes';
-            submitBtn.disabled = false;
-          }
-        });
-        editProfileModal.addEventListener('hidden.bs.modal', function () {
-          const submitBtn = document.querySelector('#editProfileForm button[type="submit"]');
-          if (submitBtn) {
-            submitBtn.textContent = 'Save Changes';
-            submitBtn.disabled = false;
-          }
-        });
-      }
-    });
-    </script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Toggle password visibility for all .toggle-password buttons (single handler for all)
-      document.querySelectorAll('.toggle-password').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          const targetId = btn.getAttribute('data-target');
-          const input = document.getElementById(targetId);
-          if (input) {
-            if (input.type === 'password') {
-              input.type = 'text';
-              btn.querySelector('i').classList.remove('fa-eye');
-              btn.querySelector('i').classList.add('fa-eye-slash');
-            } else {
-              input.type = 'password';
-              btn.querySelector('i').classList.remove('fa-eye-slash');
-              btn.querySelector('i').classList.add('fa-eye');
-            }
-          }
-        });
-      });
-    });
+            .catch(() => showNotification('Failed to update language preference', 'error'));
+        };
     </script>
 
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Open Change Password modal
-      const openBtn = document.getElementById('openChangePasswordModal');
-      if (openBtn) {
-        openBtn.addEventListener('click', function() {
-          const modal = new bootstrap.Modal(document.getElementById('changePasswordModal'));
-          modal.show();
-        });
-      }
-      // Handle Change Password form submit
-      const changePasswordForm = document.getElementById('changePasswordForm');
-      if (changePasswordForm) {
-        changePasswordForm.addEventListener('submit', function(e) {
-          e.preventDefault();
-          const currentPassword = document.getElementById('current-password').value;
-          const newPassword = document.getElementById('new-password').value;
-          const confirmPassword = document.getElementById('confirm-password').value;
-          // Validation
-          if (!currentPassword || !newPassword || !confirmPassword) {
-            showNotification('All password fields are required.', 'error');
-            return;
-          }
-          if (newPassword.length < 6) {
-            showNotification('New password must be at least 6 characters.', 'error');
-            return;
-          }
-          if (newPassword !== confirmPassword) {
-            showNotification('New passwords do not match.', 'error');
-            return;
-          }
-          const formData = new FormData();
-          formData.append('current_password', currentPassword);
-          formData.append('new_password', newPassword);
-          formData.append('confirm_password', confirmPassword);
-          fetch('../api/update-profile.php', {
-            method: 'POST',
-            body: formData
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              if (data.logout) {
-                showNotification('Password changed successfully! Please log in again.', 'success');
-                setTimeout(() => {
-                  window.location.href = '../index.php'; // or your login page
-                }, 1500);
-              } else {
-                showNotification('Password changed successfully!', 'success');
-                bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide();
-              }
-            } else {
-              showNotification(data.error || 'Failed to change password', 'error');
+    <style>
+        /* Notification Styles */
+        .slide-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 12px 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            max-width: 300px;
+            animation: slideIn 0.3s ease;
+        }
+
+        .slide-notification.success {
+            border-left: 4px solid #10b981;
+        }
+
+        .slide-notification.error {
+            border-left: 4px solid #ef4444;
+        }
+
+        .slide-notification span {
+            flex: 1;
+            font-size: 14px;
+            color: #374151;
+        }
+
+        .slide-notification .close-btn {
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slide-notification .close-btn:hover {
+            color: #6b7280;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
             }
-          })
-          .catch(() => showNotification('Failed to change password', 'error'));
-        });
-      }
-    });
-    </script>
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Dark mode notification styles */
+        body.dark-mode .slide-notification {
+            background: #2d3748;
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .slide-notification span {
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .slide-notification .close-btn {
+            color: #a0aec0;
+        }
+
+        body.dark-mode .slide-notification .close-btn:hover {
+            color: #cbd5e0;
+        }
+    </style>
 </body>
 </html>
