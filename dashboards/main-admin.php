@@ -519,6 +519,92 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             }
             exit;
+        case 'update_main_admin_profile':
+            try {
+                $response = ['success' => false];
+                $userId = $_SESSION['user_id'];
+                $fullName = $_POST['full_name'] ?? '';
+                $email = $_POST['email'] ?? '';
+                $currentPassword = $_POST['current_password'] ?? '';
+                $newPassword = $_POST['new_password'] ?? '';
+                $profile_pic_path = null;
+                
+                // Handle profile picture upload
+                if (isset($_FILES['profile_pic']) && $_FILES['profile_pic']['error'] == 0) {
+                    $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                    $max_size = 2 * 1024 * 1024; // 2MB
+                    if (in_array($_FILES['profile_pic']['type'], $allowed_types) && $_FILES['profile_pic']['size'] <= $max_size) {
+                        $upload_dir = '../uploads/profile_pics/';
+                        if (!is_dir($upload_dir)) {
+                            mkdir($upload_dir, 0777, true);
+                        }
+                        $file_extension = pathinfo($_FILES['profile_pic']['name'], PATHINFO_EXTENSION);
+                        $filename = 'profile_' . $userId . '_' . time() . '.' . $file_extension;
+                        $filepath = $upload_dir . $filename;
+                        if (move_uploaded_file($_FILES['profile_pic']['tmp_name'], $filepath)) {
+                            $profile_pic_path = 'uploads/profile_pics/' . $filename;
+                            // Delete old profile picture if exists
+                            if (!empty($_SESSION['profile_pic']) && $_SESSION['profile_pic'] != 'https://via.placeholder.com/150') {
+                                $old_file = '../' . $_SESSION['profile_pic'];
+                                if (file_exists($old_file)) {
+                                    @unlink($old_file);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Password update logic
+                $updatePassword = false;
+                if (!empty($newPassword)) {
+                    // Verify current password
+                    $stmt = $db->prepare('SELECT password FROM users WHERE id = ?');
+                    $stmt->execute([$userId]);
+                    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($user && password_verify($currentPassword, $user['password'])) {
+                        $hashed_password = password_hash($newPassword, PASSWORD_DEFAULT);
+                        $updatePassword = true;
+                    } else {
+                        echo json_encode(['success' => false, 'message' => 'Current password is incorrect.']);
+                        exit;
+                    }
+                }
+
+                // Build update query
+                if ($updatePassword && $profile_pic_path) {
+                    $stmt = $db->prepare('UPDATE users SET full_name = ?, email = ?, password = ?, profile_pic = ? WHERE id = ?');
+                    $result = $stmt->execute([$fullName, $email, $hashed_password, $profile_pic_path, $userId]);
+                } elseif ($updatePassword) {
+                    $stmt = $db->prepare('UPDATE users SET full_name = ?, email = ?, password = ? WHERE id = ?');
+                    $result = $stmt->execute([$fullName, $email, $hashed_password, $userId]);
+                } elseif ($profile_pic_path) {
+                    $stmt = $db->prepare('UPDATE users SET full_name = ?, email = ?, profile_pic = ? WHERE id = ?');
+                    $result = $stmt->execute([$fullName, $email, $profile_pic_path, $userId]);
+                } else {
+                    $stmt = $db->prepare('UPDATE users SET full_name = ?, email = ? WHERE id = ?');
+                    $result = $stmt->execute([$fullName, $email, $userId]);
+                }
+
+                if ($result) {
+                    $_SESSION['full_name'] = $fullName;
+                    $_SESSION['email'] = $email;
+                    if ($profile_pic_path) {
+                        $_SESSION['profile_pic'] = $profile_pic_path;
+                        $response['profile_pic'] = $profile_pic_path;
+                    }
+                    $response['success'] = true;
+                    $response['message'] = 'Profile updated successfully!';
+                    if ($updatePassword) {
+                        $response['logout'] = true;
+                    }
+                } else {
+                    $response['message'] = 'Failed to update profile.';
+                }
+                echo json_encode($response);
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            }
+            exit;
     }
 }
 
@@ -832,7 +918,7 @@ $currencyLabel = getCurrencyLabel($settings['default_currency']);
                     <h1 id="page-title">Main Admin Dashboard</h1>
                     <div class="user-info">
                         <span>Welcome, <?php echo $_SESSION['full_name']; ?></span>
-                        <img src="https://via.placeholder.com/40" alt="Profile" class="rounded-circle ms-2">
+                        <img src="<?php echo !empty($_SESSION['profile_pic']) ? '../' . $_SESSION['profile_pic'] : 'https://via.placeholder.com/40'; ?>" alt="Profile" class="rounded-circle ms-2">
                     </div>
                 </div>
             </header>
@@ -1480,6 +1566,68 @@ $currencyLabel = getCurrencyLabel($settings['default_currency']);
                                         </div>
                                         <button type="submit" class="btn btn-primary">
                                             <i class="fas fa-save me-1"></i>Save System Settings
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Profile Management -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h5><i class="fas fa-user me-2"></i>Profile Management</h5>
+                                </div>
+                                <div class="card-body">
+                                    <form id="mainAdminProfileForm" enctype="multipart/form-data">
+                                        <!-- Profile Picture Section -->
+                                        <div class="text-center mb-4">
+                                            <div class="position-relative d-inline-block">
+                                                <img id="mainAdminProfilePreview" src="<?php echo !empty($_SESSION['profile_pic']) ? '../' . $_SESSION['profile_pic'] : 'https://via.placeholder.com/150'; ?>" 
+                                                     alt="Profile Picture" class="rounded-circle" style="width: 150px; height: 150px; object-fit: cover; border: 3px solid #dee2e6;">
+                                                <label for="main_admin_profile_pic" class="position-absolute bottom-0 end-0 bg-primary text-white rounded-circle p-2" style="cursor: pointer;">
+                                                    <i class="fas fa-camera"></i>
+                                                </label>
+                                            </div>
+                                            <input type="file" id="main_admin_profile_pic" name="profile_pic" accept="image/jpeg,image/png,image/gif,image/webp" style="display: none;" onchange="previewMainAdminProfilePic(this)">
+                                            <div class="mt-2">
+                                                <small class="text-muted">Click the camera icon to change profile picture</small>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-floating mb-3">
+                                            <input type="text" class="form-control" id="main_admin_name" value="<?php echo $_SESSION['full_name']; ?>">
+                                            <label for="main_admin_name">Full Name</label>
+                                        </div>
+                                        <div class="form-floating mb-3">
+                                            <input type="email" class="form-control" id="main_admin_email" value="<?php echo $_SESSION['email']; ?>">
+                                            <label for="main_admin_email">Email</label>
+                                        </div>
+                                        <div class="form-floating mb-3 position-relative">
+                                            <input type="password" class="form-control" id="main_admin_current_password" placeholder="Current Password">
+                                            <label for="main_admin_current_password">Current Password</label>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm position-absolute top-50 end-0 translate-middle-y me-2 toggle-password" data-target="main_admin_current_password" tabindex="-1" style="z-index:2;">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        <div class="form-floating mb-3 position-relative">
+                                            <input type="password" class="form-control" id="main_admin_new_password" placeholder="New Password">
+                                            <label for="main_admin_new_password">New Password</label>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm position-absolute top-50 end-0 translate-middle-y me-2 toggle-password" data-target="main_admin_new_password" tabindex="-1" style="z-index:2;">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        <div class="form-floating mb-3 position-relative">
+                                            <input type="password" class="form-control" id="main_admin_confirm_new_password" placeholder="Confirm New Password">
+                                            <label for="main_admin_confirm_new_password">Confirm New Password</label>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm position-absolute top-50 end-0 translate-middle-y me-2 toggle-password" data-target="main_admin_confirm_new_password" tabindex="-1" style="z-index:2;">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-save me-1"></i>Update Profile
                                         </button>
                                     </form>
                                 </div>
@@ -3483,6 +3631,74 @@ TravelNepal Team</textarea>
             submitBtn.classList.remove('btn-loading');
         });
     });
+
+    // Main Admin Profile Picture Preview
+    function previewMainAdminProfilePic(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('mainAdminProfilePreview').src = e.target.result;
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    // Main Admin Profile Form Submission
+    const mainAdminProfileForm = document.getElementById('mainAdminProfileForm');
+    if (mainAdminProfileForm) {
+        mainAdminProfileForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('action', 'update_main_admin_profile');
+            formData.append('full_name', document.getElementById('main_admin_name').value);
+            formData.append('email', document.getElementById('main_admin_email').value);
+            formData.append('current_password', document.getElementById('main_admin_current_password').value);
+            formData.append('new_password', document.getElementById('main_admin_new_password').value);
+            formData.append('confirm_new_password', document.getElementById('main_admin_confirm_new_password').value);
+            const profilePicInput = document.getElementById('main_admin_profile_pic');
+            if (profilePicInput.files && profilePicInput.files[0]) {
+                formData.append('profile_pic', profilePicInput.files[0]);
+            }
+            const submitBtn = mainAdminProfileForm.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
+            submitBtn.disabled = true;
+            fetch('', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message || 'Profile updated successfully!', 'success');
+                    // Update header name and image
+                    document.querySelector('.user-info span').textContent = 'Welcome, ' + document.getElementById('main_admin_name').value;
+                    if (data.profile_pic) {
+                        document.querySelector('.user-info img').src = '../' + data.profile_pic;
+                        document.getElementById('mainAdminProfilePreview').src = '../' + data.profile_pic;
+                    }
+                    // Clear password fields
+                    document.getElementById('main_admin_current_password').value = '';
+                    document.getElementById('main_admin_new_password').value = '';
+                    document.getElementById('main_admin_confirm_new_password').value = '';
+                    if (data.logout) {
+                        setTimeout(() => { window.location.href = '../index.php'; }, 1200);
+                    } else {
+                        setTimeout(() => location.reload(), 1200);
+                    }
+                } else {
+                    showNotification(data.message || 'Error updating profile', 'error');
+                }
+            })
+            .catch(() => {
+                showNotification('Error updating profile', 'error');
+            })
+            .finally(() => {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+        });
+    }
     </script>
 </body>
 </html>

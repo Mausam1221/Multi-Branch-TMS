@@ -49,10 +49,10 @@ class Auth {
             $stmt->execute();
             
             // Get settings
-            $maxAttempts = (int)$this->getSystemSetting('max_login_attempts', 5);
             $inactivityDays = (int)$this->getSystemSetting('inactivity_days', 30);
             
             // Update customer statuses based on inactivity (configurable days)
+            // Login attempt limits disabled - removed attempt-based blocking
             $stmt = $this->conn->prepare("
                 UPDATE users 
                 SET status = 'inactive' 
@@ -60,30 +60,8 @@ class Auth {
                 AND status = 'active' 
                 AND last_login IS NOT NULL 
                 AND last_login < DATE_SUB(NOW(), INTERVAL ? DAY)
-                AND id NOT IN (
-                    SELECT DISTINCT user_id FROM login_attempts 
-                    WHERE success = FALSE 
-                    AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
-                    GROUP BY user_id 
-                    HAVING COUNT(*) >= ?
-                )
             ");
-            $stmt->execute([$inactivityDays, $maxAttempts]);
-            $stmt->execute([$maxAttempts]);
-            
-            // Keep blocked users inactive (users with too many failed attempts)
-            $stmt = $this->conn->prepare("
-                UPDATE users 
-                SET status = 'blocked' 
-                WHERE id IN (
-                    SELECT DISTINCT user_id FROM login_attempts 
-                    WHERE success = FALSE 
-                    AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
-                    GROUP BY user_id 
-                    HAVING COUNT(*) >= ?
-                )
-            ");
-            $stmt->execute([$maxAttempts]);
+            $stmt->execute([$inactivityDays]);
             
         } catch (Exception $e) {
             error_log("Error updating user statuses: " . $e->getMessage());
@@ -102,80 +80,18 @@ class Auth {
     }
     
     public function isAccountLocked($username) {
-        try {
-            $maxAttempts = (int)$this->getSystemSetting('max_login_attempts', 5);
-            $lockoutDuration = 15; // minutes
-            
-            // Count failed attempts in the last lockout duration
-            $stmt = $this->conn->prepare("
-                SELECT COUNT(*) as failed_attempts 
-                FROM login_attempts 
-                WHERE username = ? 
-                AND success = FALSE 
-                AND attempt_time > DATE_SUB(NOW(), INTERVAL ? MINUTE)
-            ");
-            $stmt->execute([$username, $lockoutDuration]);
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            return $result['failed_attempts'] >= $maxAttempts;
-        } catch (Exception $e) {
-            error_log("Error checking account lock: " . $e->getMessage());
-            return false;
-        }
+        // Login attempt limits disabled
+        return false;
     }
     
     public function getRemainingAttempts($username) {
-        try {
-            $maxAttempts = (int)$this->getSystemSetting('max_login_attempts', 5);
-            $lockoutDuration = 15; // minutes
-            
-            // Count failed attempts in the last lockout duration
-            $stmt = $this->conn->prepare("
-                SELECT COUNT(*) as failed_attempts 
-                FROM login_attempts 
-                WHERE username = ? 
-                AND success = FALSE 
-                AND attempt_time > DATE_SUB(NOW(), INTERVAL ? MINUTE)
-            ");
-            $stmt->execute([$username, $lockoutDuration]);
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            return max(0, $maxAttempts - $result['failed_attempts']);
-        } catch (Exception $e) {
-            error_log("Error getting remaining attempts: " . $e->getMessage());
-            return $maxAttempts;
-        }
+        // Login attempt limits disabled - always return unlimited attempts
+        return 999;
     }
     
     public function getLockoutTimeRemaining($username) {
-        try {
-            $maxAttempts = (int)$this->getSystemSetting('max_login_attempts', 5);
-            $lockoutDuration = 15; // minutes
-            
-            // Get the time of the last failed attempt
-            $stmt = $this->conn->prepare("
-                SELECT attempt_time 
-                FROM login_attempts 
-                WHERE username = ? 
-                AND success = FALSE 
-                ORDER BY attempt_time DESC 
-                LIMIT 1
-            ");
-            $stmt->execute([$username]);
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($result) {
-                $lastAttempt = strtotime($result['attempt_time']);
-                $lockoutEnd = $lastAttempt + ($lockoutDuration * 60);
-                $remaining = $lockoutEnd - time();
-                return max(0, $remaining);
-            }
-            
-            return 0;
-        } catch (Exception $e) {
-            error_log("Error getting lockout time: " . $e->getMessage());
-            return 0;
-        }
+        // Login attempt limits disabled - no lockout time
+        return 0;
     }
     
     public function recordLoginAttempt($username, $success, $userId = null) {
@@ -202,21 +118,9 @@ class Auth {
     
     public function login($username, $password) {
     try {
-        // Check if account is locked
-        if ($this->isAccountLocked($username)) {
-            $remainingTime = $this->getLockoutTimeRemaining($username);
-            if ($remainingTime > 0) {
-                $minutes = floor($remainingTime / 60);
-                $seconds = $remainingTime % 60;
-                $this->recordLoginAttempt($username, false);
-                throw new Exception("Account is temporarily locked. Please try again in {$minutes}m {$seconds}s.");
-            } else {
-                // Lockout period expired, clear old attempts
-                $this->clearLoginAttempts($username);
-            }
-        }
+        // Login attempt limits disabled - no account lock checks
         
-        $query = "SELECT id, username, email, password, role, branch_id, full_name, profile_pic, status FROM users WHERE username = :username";
+        $query = "SELECT id, username, email, password, role, branch_id, full_name, profile_pic, status, last_login FROM users WHERE username = :username";
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(':username', $username);
         $stmt->execute();
@@ -301,13 +205,7 @@ class Auth {
         // Record failed login attempt
         $this->recordLoginAttempt($username, false, $user['id'] ?? null);
         
-        // Check if account should be locked after this failed attempt
-        if ($this->isAccountLocked($username)) {
-            $remainingTime = $this->getLockoutTimeRemaining($username);
-            $minutes = floor($remainingTime / 60);
-            $seconds = $remainingTime % 60;
-            throw new Exception("Too many failed attempts. Account locked for {$minutes}m {$seconds}s.");
-        }
+        // Login attempt limits disabled - no account lock checks
         
     } catch (Exception $e) {
         error_log("Login error: " . $e->getMessage());

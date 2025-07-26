@@ -58,8 +58,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             exit;
 
         case 'update_branch_info':
-            $stmt = $db->prepare("UPDATE branches SET location = ?, contact_email = ?, contact_phone = ? WHERE id = ?");
-            $result = $stmt->execute([$_POST['location'], $_POST['email'], $_POST['phone'], $branch_id]);
+            $stmt = $db->prepare("UPDATE branches SET name = ?, location = ?, contact_email = ?, contact_phone = ? WHERE id = ?");
+            $result = $stmt->execute([
+                $_POST['name'],
+                $_POST['location'],
+                $_POST['email'],
+                $_POST['phone'],
+                $branch_id
+            ]);
             echo json_encode(['success' => $result]);
             exit;
 
@@ -728,20 +734,36 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ($branch_packages as $package): ?>
+                                        <?php foreach ($branch_packages as $package):
+                                            // Calculate total bookings and revenue for this package
+                                            $pkg_id = $package['id'];
+                                            $pkg_bookings = array_filter($branch_bookings, function($b) use ($pkg_id) { return $b['package_id'] == $pkg_id; });
+                                            $total_bookings = count($pkg_bookings);
+                                            $revenue = array_sum(array_map(function($b) { return $b['total_amount']; }, $pkg_bookings));
+                                            // Calculate average rating for this package
+                                            $rating_stmt = $db->prepare("SELECT AVG(rating) as avg_rating, COUNT(*) as num_reviews FROM reviews WHERE package_id = ?");
+                                            $rating_stmt->execute([$pkg_id]);
+                                            $rating_row = $rating_stmt->fetch(PDO::FETCH_ASSOC);
+                                            $avg_rating = $rating_row && $rating_row['num_reviews'] > 0 ? number_format($rating_row['avg_rating'], 1) : 'N/A';
+                                        ?>
                                         <tr>
                                             <td><?php echo $package['name']; ?></td>
-                                            <td><span class="badge bg-primary"><?php echo rand(5, 25); ?></span></td>
-                                            <td><?php echo $currencySymbol . number_format(rand(50000, 200000)); ?></td>
+                                            <td><span class="badge bg-primary"><?php echo $total_bookings; ?></span></td>
+                                            <td><?php echo $currencySymbol . number_format($revenue); ?></td>
                                             <td>
                                                 <div class="d-flex align-items-center">
-                                                    <span class="me-1"><?php echo number_format(rand(35, 50)/10, 1); ?></span>
+                                                    <span class="me-1"><?php echo $avg_rating; ?></span>
                                                     <div class="text-warning">
-                                                        <i class="fas fa-star"></i>
-                                                        <i class="fas fa-star"></i>
-                                                        <i class="fas fa-star"></i>
-                                                        <i class="fas fa-star"></i>
-                                                        <i class="far fa-star"></i>
+                                                        <?php if ($avg_rating !== 'N/A') {
+                                                            $full_stars = floor($avg_rating);
+                                                            $half_star = ($avg_rating - $full_stars) >= 0.5 ? 1 : 0;
+                                                            $empty_stars = 5 - $full_stars - $half_star;
+                                                            for ($i = 0; $i < $full_stars; $i++) echo '<i class="fas fa-star"></i>';
+                                                            if ($half_star) echo '<i class="fas fa-star-half-alt"></i>';
+                                                            for ($i = 0; $i < $empty_stars; $i++) echo '<i class="far fa-star"></i>';
+                                                        } else {
+                                                            echo '<i class="far fa-star"></i><i class="far fa-star"></i><i class="far fa-star"></i><i class="far fa-star"></i><i class="far fa-star"></i>';
+                                                        } ?>
                                                     </div>
                                                 </div>
                                             </td>
@@ -776,7 +798,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <div class="card-body">
                                     <form id="branchInfoForm">
                                         <div class="form-floating mb-3">
-                                            <input type="text" class="form-control" id="branch_name" value="<?php echo $branch_info['name']; ?>" readonly>
+                                            <input type="text" class="form-control" id="branch_name" value="<?php echo $branch_info['name']; ?>">
                                             <label for="branch_name">Branch Name</label>
                                         </div>
                                         <div class="form-floating mb-3">
@@ -1146,6 +1168,7 @@ $branch_customers = $customers_stmt->fetchAll(PDO::FETCH_ASSOC);
 
             const formData = new FormData();
             formData.append('action', 'update_branch_info');
+            formData.append('name', document.getElementById('branch_name').value);
             formData.append('location', document.getElementById('branch_location').value);
             formData.append('email', document.getElementById('branch_email').value);
             formData.append('phone', document.getElementById('branch_phone').value);
